@@ -376,7 +376,10 @@ export default function App() {
     };
 
     recognition.onerror = (event: any) => {
-      console.error('Speech recognition error', event.error);
+      if (event.error !== 'aborted' && event.error !== 'no-speech') {
+        console.error('Speech recognition error', event.error);
+      }
+      
       if (event.error === 'not-allowed') {
         setErrorMsg('麥克風權限遭拒，請在瀏覽器設定中允許麥克風存取權限。');
         setIsRecording(false);

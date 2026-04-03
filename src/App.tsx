@@ -148,7 +148,7 @@ Core_Rules:
   };
 
   // 初始化 Web Speech API (STT)
-  const initSpeechRecognition = useCallback(() => {
+  function initSpeechRecognition() {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
@@ -252,7 +252,7 @@ Core_Rules:
       if (remainingUncommitted.trim()) {
         debounceTimerRef.current = setTimeout(() => {
           flushBuffer();
-        }, 800);
+        }, 500);
       }
     };
 
@@ -285,7 +285,11 @@ Core_Rules:
       if (isRecordingRef.current) {
         setTimeout(() => {
           try {
-            recognition.start();
+            // 重新初始化一個新的 recognition 實例，避免舊實例卡死
+            const isSupported = initSpeechRecognition();
+            if (isSupported && recognitionRef.current) {
+              recognitionRef.current.start();
+            }
           } catch (e) {
             console.error('Restart recognition error:', e);
           }
@@ -295,7 +299,7 @@ Core_Rules:
 
     recognitionRef.current = recognition;
     return true;
-  }, []);
+  }
 
   // 切換錄音狀態
   const toggleRecording = () => {

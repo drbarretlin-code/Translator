@@ -70,14 +70,17 @@ export default function App() {
   const translateText = async (id: string, text: string, tgtLang: string) => {
     const tgtLangName = LANGUAGES.find(l => l.id === tgtLang)?.name || tgtLang;
     
+    // 確保將狀態設為 isFinal: true，否則 UI 會一直卡在「等待語音結束...」隱藏錯誤訊息
     setTranscripts(prev => prev.map(t => 
-      t.id === id ? { ...t, isTranslating: true, targetLang: tgtLangName } : t
+      t.id === id ? { ...t, isTranslating: true, isFinal: true, targetLang: tgtLangName } : t
     ));
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-        throw new Error("請在 AI Studio 的 Secrets 面板中設定有效的 GEMINI_API_KEY。");
+      // 支援 process.env (透過 vite.config.ts define) 或 import.meta.env
+      const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+      
+      if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey === "undefined") {
+        throw new Error("請在 Vercel 的 Environment Variables 中設定 GEMINI_API_KEY，設定後請務必重新部署 (Redeploy) 才會生效。");
       }
       
       const ai = new GoogleGenAI({ apiKey });

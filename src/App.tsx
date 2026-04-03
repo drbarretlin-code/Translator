@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { cn } from './lib/utils';
 
@@ -28,9 +28,113 @@ interface Transcript {
   error?: string;
 }
 
+const CountryFlag = ({ langId, className }: { langId: string, className?: string }) => {
+  switch (langId) {
+    case 'en-US':
+      return (
+        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#fff"/>
+          <rect width="60" height="3.07" y="0" fill="#B22234"/>
+          <rect width="60" height="3.07" y="6.15" fill="#B22234"/>
+          <rect width="60" height="3.07" y="12.3" fill="#B22234"/>
+          <rect width="60" height="3.07" y="18.46" fill="#B22234"/>
+          <rect width="60" height="3.07" y="24.61" fill="#B22234"/>
+          <rect width="60" height="3.07" y="30.76" fill="#B22234"/>
+          <rect width="60" height="3.07" y="36.92" fill="#B22234"/>
+          <rect width="24" height="21.53" fill="#3C3B6E"/>
+          <circle cx="4" cy="4" r="1" fill="#fff"/><circle cx="12" cy="4" r="1" fill="#fff"/><circle cx="20" cy="4" r="1" fill="#fff"/>
+          <circle cx="8" cy="8" r="1" fill="#fff"/><circle cx="16" cy="8" r="1" fill="#fff"/>
+          <circle cx="4" cy="12" r="1" fill="#fff"/><circle cx="12" cy="12" r="1" fill="#fff"/><circle cx="20" cy="12" r="1" fill="#fff"/>
+          <circle cx="8" cy="16" r="1" fill="#fff"/><circle cx="16" cy="16" r="1" fill="#fff"/>
+        </svg>
+      );
+    case 'en-GB':
+      return (
+        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#012169"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" strokeWidth="6"/>
+          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" strokeWidth="2"/>
+          <path d="M30,0 L30,40 M0,20 L60,20" stroke="#fff" strokeWidth="10"/>
+          <path d="M30,0 L30,40 M0,20 L60,20" stroke="#C8102E" strokeWidth="6"/>
+        </svg>
+      );
+    case 'ja-JP':
+      return (
+        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#fff"/>
+          <circle cx="30" cy="20" r="12" fill="#BC002D"/>
+        </svg>
+      );
+    case 'fr-FR':
+      return (
+        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="20" height="40" fill="#002395"/>
+          <rect x="20" width="20" height="40" fill="#fff"/>
+          <rect x="40" width="20" height="40" fill="#ED2939"/>
+        </svg>
+      );
+    case 'th-TH':
+      return (
+        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#A51931"/>
+          <rect y="6.66" width="60" height="26.66" fill="#F4F5F8"/>
+          <rect y="13.33" width="60" height="13.33" fill="#2D2A4A"/>
+        </svg>
+      );
+    case 'vi-VN':
+      return (
+        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#DA251D"/>
+          <polygon points="30,8 33.5,18.5 44,18.5 35.5,25 38.5,35 30,29 21.5,35 24.5,25 16,18.5 26.5,18.5" fill="#FFFF00"/>
+        </svg>
+      );
+    case 'id-ID':
+      return (
+        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="20" fill="#FF0000"/>
+          <rect y="20" width="60" height="20" fill="#FFFFFF"/>
+        </svg>
+      );
+    case 'ms-MY':
+      return (
+        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#fff"/>
+          <rect y="0" width="60" height="2.85" fill="#CC0000"/>
+          <rect y="5.71" width="60" height="2.85" fill="#CC0000"/>
+          <rect y="11.42" width="60" height="2.85" fill="#CC0000"/>
+          <rect y="17.14" width="60" height="2.85" fill="#CC0000"/>
+          <rect y="22.85" width="60" height="2.85" fill="#CC0000"/>
+          <rect y="28.57" width="60" height="2.85" fill="#CC0000"/>
+          <rect y="34.28" width="60" height="2.85" fill="#CC0000"/>
+          <rect width="30" height="22.85" fill="#000066"/>
+          <circle cx="15" cy="11.42" r="7" fill="#FFCC00"/>
+          <circle cx="17" cy="11.42" r="6" fill="#000066"/>
+          <polygon points="20,11.42 16,13 17,17 14,14 10,15 12,11.42 10,8 14,9 17,6 16,10" fill="#FFCC00"/>
+        </svg>
+      );
+    case 'zh-TW':
+      return (
+        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#FE0000"/>
+          <rect width="30" height="20" fill="#000095"/>
+          <circle cx="15" cy="10" r="5" fill="#fff"/>
+          <path d="M15,2 L16,6 L20,4 L18,8 L22,10 L18,12 L20,16 L16,14 L15,18 L14,14 L10,16 L12,12 L8,10 L12,8 L10,4 L14,6 Z" fill="#fff"/>
+        </svg>
+      );
+    default:
+      return (
+        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="60" height="40" fill="#E2E8F0"/>
+          <circle cx="30" cy="20" r="10" fill="#94A3B8"/>
+        </svg>
+      );
+  }
+};
+
 export default function App() {
   const [isRecording, setIsRecording] = useState(false);
-  const [targetLang, setTargetLang] = useState('th-TH');
+  const [localLang, setLocalLang] = useState('zh-TW');
+  const [clientLang, setClientLang] = useState('en-US');
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
@@ -47,7 +151,8 @@ export default function App() {
   const flushBufferRef = useRef<() => void>(() => {});
   
   const isRecordingRef = useRef<boolean>(false);
-  const targetLangRef = useRef<string>(targetLang);
+  const localLangRef = useRef<string>(localLang);
+  const clientLangRef = useRef<string>(clientLang);
   const transcriptsRef = useRef<Transcript[]>([]);
 
   // 同步 state 到 ref，供事件回呼使用
@@ -60,8 +165,12 @@ export default function App() {
   }, [isRecording]);
 
   useEffect(() => {
-    targetLangRef.current = targetLang;
-  }, [targetLang]);
+    localLangRef.current = localLang;
+  }, [localLang]);
+
+  useEffect(() => {
+    clientLangRef.current = clientLang;
+  }, [clientLang]);
 
   useEffect(() => {
     localStorage.setItem('gemini_api_key', userApiKey);
@@ -73,12 +182,13 @@ export default function App() {
   }, [transcripts]);
 
   // 執行翻譯 (直接在前端呼叫 Gemini API)
-  const translateText = async (id: string, text: string, tgtLang: string) => {
-    const tgtLangName = LANGUAGES.find(l => l.id === tgtLang)?.name || tgtLang;
+  const translateText = async (id: string, text: string) => {
+    const localLangName = LANGUAGES.find(l => l.id === localLangRef.current)?.name || localLangRef.current;
+    const clientLangName = LANGUAGES.find(l => l.id === clientLangRef.current)?.name || clientLangRef.current;
     
     // 確保將狀態設為 isFinal: true，否則 UI 會一直卡在「等待語音結束...」隱藏錯誤訊息
     setTranscripts(prev => prev.map(t => 
-      t.id === id ? { ...t, isTranslating: true, isFinal: true, targetLang: tgtLangName } : t
+      t.id === id ? { ...t, isTranslating: true, isFinal: true, targetLang: `${localLangName} ↔ ${clientLangName}` } : t
     ));
 
     try {
@@ -87,35 +197,16 @@ export default function App() {
       }
       
       const ai = new GoogleGenAI({ apiKey: userApiKey });
-      
-      // 取得最近 3 筆已完成的對話作為上下文歷史
-      const history = transcriptsRef.current
-        .filter(t => t.isFinal && t.translated && t.id !== id)
-        .slice(-3)
-        .map(t => `Previous Sentence: ${t.original}`);
 
-      const systemInstruction = `Version: v1.4
-Role: 專業多國語言即時精準口譯專家
-Description: 具備豐富跨國會議、高階商業談判與外交場合經驗的頂級口譯員。能即時、精確且流暢地在多國語言之間進行雙向轉換。
-Core_Rules:
-  1_Absolute_Accuracy: 翻譯必須忠於原意。
-  2_Context_and_Culture: 翻譯時需考量目標語言的文化習慣，將生硬的直譯轉化為符合當地母語人士表達習慣的自然用語。
-  3_Contextual_Correction (Critical): 語音辨識（STT）常有同音異字或辨識錯誤。請務必參考提供的「[Context History] 對話歷史上下文」。若發現當前輸入的語句與上下文語意完全沒有連貫性，或出現明顯的語音辨識錯誤，請自動依據上下文邏輯與目標語言國家的習慣用語，推斷並「修正」原意後，再進行翻譯。
-  4_Humanization_and_Fluency (Critical): 說話者的語速、音量變化或口音可能導致輸入的句子破碎或結構不完整。請發揮人類口譯員的專業，自動腦補、平滑化這些破碎的語句，使其在目標語言中聽起來自然、連貫且符合人類說話的抑揚頓挫。
-  5_Direct_Output: 模擬即時口譯的極高效率，直接輸出翻譯結果。絕對禁止加入任何解釋、註解、括號說明（如 [註：...]）或對話機器人的過渡語。只能輸出純粹的翻譯結果。`;
-
-      let prompt = `[Target Language: ${tgtLangName}]\n\n`;
-      if (history.length > 0) {
-        prompt += `[Context History]\n${history.join('\n')}\n\n`;
-      }
-      prompt += `[Current Speech to Translate]\n${text}`;
+      // 極度精簡的 System Prompt，捨棄歷史上下文，追求極致的 TTFT (Time To First Token)
+      const systemInstruction = `Translate the input. If it is ${localLangName}, translate to ${clientLangName}. If it is ${clientLangName}, translate to ${localLangName}. Output ONLY the translation.`;
 
       const responseStream = await ai.models.generateContentStream({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
+        model: "gemini-3.1-flash-lite-preview", // 使用最輕量、最快速的模型
+        contents: text,
         config: {
           systemInstruction,
-          temperature: 0.3,
+          temperature: 0.1, // 降低隨機性，加快生成速度
         }
       });
 
@@ -187,12 +278,12 @@ Core_Rules:
               isFinal: false,
               isTranslating: false,
               sourceLang: 'Auto',
-              targetLang: targetLangRef.current
+              targetLang: 'Auto'
             }
           ]);
         }
         
-        translateText(idToUse, textToSend, targetLangRef.current);
+        translateText(idToUse, textToSend);
         sessionCommittedLengthRef.current = sessionText.length;
         currentTranscriptIdRef.current = '';
       }
@@ -242,7 +333,7 @@ Core_Rules:
             isFinal: false,
             isTranslating: false,
             sourceLang: 'Auto',
-            targetLang: targetLangRef.current
+            targetLang: 'Auto'
           }
         ]);
       } else if (textChanged) {
@@ -257,7 +348,7 @@ Core_Rules:
       if (sessionFinals.length > sessionCommittedLengthRef.current) {
         const textToSend = sessionFinals.substring(sessionCommittedLengthRef.current).trim();
         if (textToSend) {
-          translateText(currentTranscriptIdRef.current, textToSend, targetLangRef.current);
+          translateText(currentTranscriptIdRef.current, textToSend);
           sessionCommittedLengthRef.current = sessionFinals.length;
           currentTranscriptIdRef.current = ''; // 重置 ID，讓下一句話產生新的對話框
         }
@@ -274,7 +365,7 @@ Core_Rules:
           }
           debounceTimerRef.current = setTimeout(() => {
             flushBuffer();
-          }, 400); // 縮短至 400ms 讓反應更即時
+          }, 150); // 極限縮短至 150ms，創造幾乎同步的即時感
         }
       } else {
         if (debounceTimerRef.current) {
@@ -428,31 +519,54 @@ Core_Rules:
           </div>
         )}
 
-        {/* 控制面板：目標語言選擇與錄音按鈕 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-col items-center justify-center flex-shrink-0">
-          <div className="text-center mb-3">
-            <h2 className="text-lg font-semibold text-slate-800">自動語種辨識與翻譯</h2>
-          </div>
+        {/* 控制面板：互譯功能選擇與錄音按鈕 */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-row items-center justify-between flex-shrink-0 gap-4">
           
-          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full max-w-md mx-auto">
-            <div className="w-full sm:w-1/2">
-              <label className="block text-xs font-medium text-slate-500 mb-1.5 ml-1">目標語言</label>
+          {/* 左側國旗 (Local) */}
+          <div className="hidden md:flex items-center justify-center flex-shrink-0">
+            <CountryFlag langId={localLang} className="w-16 h-11 rounded-md shadow-sm border border-slate-200 object-cover" />
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full max-w-2xl mx-auto">
+            <div className="w-full sm:w-1/3">
+              <label className="block text-xs font-medium text-slate-500 mb-1.5 ml-1">Local (本地端)</label>
               <div className="relative">
                 <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <select 
-                  value={targetLang}
-                  onChange={(e) => setTargetLang(e.target.value)}
+                  value={localLang}
+                  onChange={(e) => setLocalLang(e.target.value)}
                   disabled={isRecording}
                   className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
                 >
                   {LANGUAGES.map(lang => (
-                    <option key={`tgt-${lang.id}`} value={lang.id}>{lang.name}</option>
+                    <option key={`local-${lang.id}`} value={lang.id}>{lang.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="hidden sm:flex items-center justify-center mt-5">
+              <ArrowRightLeft className="w-5 h-5 text-slate-400" />
+            </div>
+
+            <div className="w-full sm:w-1/3">
+              <label className="block text-xs font-medium text-slate-500 mb-1.5 ml-1">Client (客戶端)</label>
+              <div className="relative">
+                <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <select 
+                  value={clientLang}
+                  onChange={(e) => setClientLang(e.target.value)}
+                  disabled={isRecording}
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
+                >
+                  {LANGUAGES.map(lang => (
+                    <option key={`client-${lang.id}`} value={lang.id}>{lang.name}</option>
                   ))}
                 </select>
               </div>
             </div>
             
-            <div className="w-full sm:w-1/2 flex items-end h-full">
+            <div className="w-full sm:w-1/3 flex items-end h-full">
               <button
                 onClick={toggleRecording}
                 className={cn(
@@ -469,6 +583,11 @@ Core_Rules:
                 )}
               </button>
             </div>
+          </div>
+
+          {/* 右側國旗 (Client) */}
+          <div className="hidden md:flex items-center justify-center flex-shrink-0">
+            <CountryFlag langId={clientLang} className="w-16 h-11 rounded-md shadow-sm border border-slate-200 object-cover" />
           </div>
         </div>
 

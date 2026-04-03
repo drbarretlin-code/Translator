@@ -5,15 +5,15 @@ import { cn } from './lib/utils';
 
 // 定義支援的語言與腔調清單
 const LANGUAGES = [
-  { id: 'en-US', name: '美國英語 (US English)' },
-  { id: 'en-GB', name: '英國英語 (UK English)' },
-  { id: 'ja-JP', name: '日語 (Japanese)' },
-  { id: 'fr-FR', name: '法語 (French)' },
-  { id: 'th-TH', name: '泰語 (Thai)' },
-  { id: 'vi-VN', name: '越南語 (Vietnamese)' },
-  { id: 'id-ID', name: '印尼語 (Indonesian)' },
-  { id: 'ms-MY', name: '馬來西亞語 (Malaysian)' },
-  { id: 'zh-TW', name: '繁體中文 (Traditional Chinese)' },
+  { id: 'en-US', name: '美國英語 (English)' },
+  { id: 'en-GB', name: '英國英語 (English)' },
+  { id: 'ja-JP', name: '日語 (日本語)' },
+  { id: 'fr-FR', name: '法語 (Français)' },
+  { id: 'th-TH', name: '泰語 (ไทย)' },
+  { id: 'vi-VN', name: '越南語 (Tiếng Việt)' },
+  { id: 'id-ID', name: '印尼語 (Bahasa Indonesia)' },
+  { id: 'ms-MY', name: '馬來西亞語 (Bahasa Melayu)' },
+  { id: 'zh-TW', name: '繁體中文 (繁體中文)' },
 ];
 
 // 定義對話紀錄的資料結構
@@ -365,7 +365,7 @@ export default function App() {
           }
           debounceTimerRef.current = setTimeout(() => {
             flushBuffer();
-          }, 150); // 極限縮短至 150ms，創造幾乎同步的即時感
+          }, 500); // 調整至 500ms，讓使用者有更充裕的停頓時間
         }
       } else {
         if (debounceTimerRef.current) {

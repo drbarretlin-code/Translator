@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, Square as StopIcon } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, Square as StopIcon, Moon, Sun, Trash2, Share2, Check } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { cn } from './lib/utils';
 
@@ -141,6 +141,9 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [playingTTSId, setPlayingTTSId] = useState<string | null>(null);
   const [loadingTTSId, setLoadingTTSId] = useState<string | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [shareSuccess, setShareSuccess] = useState(false);
   
   const recognitionRef = useRef<any>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -179,6 +182,42 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('gemini_api_key', userApiKey);
   }, [userApiKey]);
+
+  // 暗色模式切換
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  // 清除對話紀錄
+  const handleClear = () => {
+    setTranscripts([]);
+    setShowClearConfirm(false);
+  };
+
+  // 分享對話紀錄
+  const handleShare = async () => {
+    if (transcripts.length === 0) return;
+    
+    const text = transcripts.map(t => {
+      const sourceName = LANGUAGES.find(l => l.id === t.sourceLang)?.name || t.sourceLang;
+      const targetName = LANGUAGES.find(l => l.id === t.targetLang)?.name || t.targetLang;
+      return `[${sourceName}]\n${t.original}\n\n[${targetName}]\n${t.translated}`;
+    }).join('\n\n---\n\n');
+    
+    try {
+      await navigator.clipboard.writeText(text);
+      setShareSuccess(true);
+      setTimeout(() => setShareSuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy', err);
+    }
+  };
 
   // 自動滾動到最新對話
   useEffect(() => {
@@ -618,9 +657,9 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen bg-slate-50 text-slate-900 font-sans flex flex-col overflow-hidden">
+    <div className="h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col overflow-hidden transition-colors duration-300">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 shadow-sm z-10 flex-shrink-0">
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 shadow-sm z-10 flex-shrink-0 transition-colors duration-300">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="bg-blue-600 p-2 rounded-lg">
@@ -628,15 +667,22 @@ export default function App() {
             </div>
             <h1 className="text-xl font-semibold tracking-tight">AI 智慧口譯專家</h1>
           </div>
-          <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
+          <div className="flex items-center gap-2 sm:gap-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
+            <button 
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+              title={isDarkMode ? "切換至亮色模式" : "切換至暗色模式"}
+            >
+              {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-slate-600" />}
+            </button>
             <button 
               onClick={() => setShowSettings(!showSettings)}
-              className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
               title="設定 API 金鑰"
             >
-              <Settings className="w-5 h-5 text-slate-600" />
+              <Settings className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             </button>
-            <span className="flex items-center gap-1">
+            <span className="hidden sm:flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-500"></span>
               系統就緒
             </span>
@@ -644,16 +690,16 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 overflow-hidden">
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 overflow-hidden relative">
         
         {/* API Key 設定區塊 */}
         {showSettings && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex-shrink-0 animate-in fade-in slide-in-from-top-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex-shrink-0 animate-in fade-in slide-in-from-top-4 transition-colors duration-300">
             <div className="flex items-center gap-2 mb-3">
-              <Key className="w-5 h-5 text-blue-600" />
-              <h2 className="text-lg font-semibold text-slate-800">API 金鑰設定</h2>
+              <Key className="w-5 h-5 text-blue-600 dark:text-blue-500" />
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">API 金鑰設定</h2>
             </div>
-            <p className="text-sm text-slate-500 mb-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
               請輸入您的 Gemini API 金鑰。此金鑰僅會儲存在您的瀏覽器本地端，不會上傳至任何伺服器。
             </p>
             <div className="flex gap-2">
@@ -662,11 +708,11 @@ export default function App() {
                 value={userApiKey}
                 onChange={(e) => setUserApiKey(e.target.value)}
                 placeholder="AIzaSy..."
-                className="flex-1 px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                className="flex-1 px-4 py-2 bg-transparent border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white"
               />
               <button
                 onClick={() => setShowSettings(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-medium transition-colors"
               >
                 完成
               </button>
@@ -675,23 +721,23 @@ export default function App() {
         )}
 
         {/* 控制面板：互譯功能選擇與錄音按鈕 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-row items-center justify-between flex-shrink-0 gap-2 sm:gap-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex flex-row items-center justify-between flex-shrink-0 gap-2 sm:gap-4 transition-colors duration-300">
           
           {/* 左側國旗 (Local) */}
           <div className="flex items-center justify-center flex-shrink-0">
-            <CountryFlag langId={localLang} className="w-12 h-8 sm:w-16 sm:h-11 rounded-md shadow-sm border border-slate-200 object-cover" />
+            <CountryFlag langId={localLang} className="w-12 h-8 sm:w-16 sm:h-11 rounded-md shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full max-w-2xl mx-auto">
             <div className="w-full sm:w-1/3">
-              <label className="block text-xs font-medium text-slate-500 mb-1.5 ml-1">Local (本地端)</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">Local (本地端)</label>
               <div className="relative">
-                <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
                 <select 
                   value={localLang}
                   onChange={(e) => setLocalLang(e.target.value)}
                   disabled={isRecording}
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed appearance-none dark:text-slate-200"
                 >
                   {LANGUAGES.map(lang => (
                     <option key={`local-${lang.id}`} value={lang.id}>{lang.name}</option>
@@ -701,18 +747,18 @@ export default function App() {
             </div>
 
             <div className="hidden sm:flex items-center justify-center mt-5">
-              <ArrowRightLeft className="w-5 h-5 text-slate-400" />
+              <ArrowRightLeft className="w-5 h-5 text-slate-400 dark:text-slate-500" />
             </div>
 
             <div className="w-full sm:w-1/3">
-              <label className="block text-xs font-medium text-slate-500 mb-1.5 ml-1">Client (客戶端)</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">Client (客戶端)</label>
               <div className="relative">
-                <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
                 <select 
                   value={clientLang}
                   onChange={(e) => setClientLang(e.target.value)}
                   disabled={isRecording}
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed appearance-none dark:text-slate-200"
                 >
                   {LANGUAGES.map(lang => (
                     <option key={`client-${lang.id}`} value={lang.id}>{lang.name}</option>
@@ -727,7 +773,7 @@ export default function App() {
                 className={cn(
                   "flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all duration-300 shadow-sm w-full h-[42px]",
                   isRecording
-                    ? "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 animate-pulse" 
+                    ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 border border-red-200 dark:border-red-500/30 animate-pulse" 
                     : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md border border-transparent"
                 )}
               >
@@ -742,7 +788,7 @@ export default function App() {
 
           {/* 右側國旗 (Client) */}
           <div className="flex items-center justify-center flex-shrink-0">
-            <CountryFlag langId={clientLang} className="w-12 h-8 sm:w-16 sm:h-11 rounded-md shadow-sm border border-slate-200 object-cover" />
+            <CountryFlag langId={clientLang} className="w-12 h-8 sm:w-16 sm:h-11 rounded-md shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
           </div>
         </div>
 
@@ -755,22 +801,42 @@ export default function App() {
         )}
 
         {/* 翻譯對話框 (可滾動區域) */}
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-0">
-          <div className="bg-slate-50 border-b border-slate-100 px-4 sm:px-5 py-3 flex justify-between items-center flex-shrink-0">
-            <h2 className="text-sm font-medium text-slate-600">對話紀錄</h2>
-            {isRecording && (
-              <div className="flex items-center gap-2 text-xs text-red-500 font-medium animate-pulse">
-                <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                正在聆聽...
-              </div>
-            )}
+        <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col min-h-0 transition-colors duration-300">
+          <div className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 px-4 sm:px-5 py-3 flex justify-between items-center flex-shrink-0 transition-colors duration-300">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">對話紀錄</h2>
+              {isRecording && (
+                <div className="flex items-center gap-2 text-xs text-red-500 font-medium animate-pulse">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  正在聆聽...
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleShare}
+                disabled={transcripts.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {shareSuccess ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Share2 className="w-3.5 h-3.5" />}
+                {shareSuccess ? '已複製' : '分享'}
+              </button>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                disabled={transcripts.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                清除
+              </button>
+            </div>
           </div>
           
           <div className="flex-1 overflow-y-auto p-4 sm:p-5">
             {transcripts.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4 min-h-[200px]">
-                <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
-                  <Languages className="w-8 h-8 text-slate-300" />
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 space-y-4 min-h-[200px]">
+                <div className="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center border border-slate-100 dark:border-slate-800">
+                  <Languages className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                 </div>
                 <p className="text-sm">點擊上方按鈕開始對話</p>
               </div>
@@ -781,31 +847,31 @@ export default function App() {
                     <div 
                       key={t.id} 
                       className={cn(
-                        "flex flex-col gap-3 bg-slate-50 border border-slate-100 rounded-2xl p-4 transition-all duration-300 shadow-sm",
+                        "flex flex-col gap-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 transition-all duration-300 shadow-sm",
                         !t.isFinal && "opacity-60"
                       )}
                     >
                       {/* 原文 (Local/Client 之一) */}
                       <div className="flex flex-col gap-1.5">
-                        <div className="text-[15px] leading-relaxed text-slate-700">
+                        <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
                           {t.original}
                         </div>
                       </div>
                       
                       {/* 分隔線 */}
-                      <div className="h-px w-full bg-slate-200"></div>
+                      <div className="h-px w-full bg-slate-200 dark:bg-slate-700"></div>
                       
                       {/* 翻譯文 (對應的另一端) */}
                       <div className="flex flex-col gap-1.5">
                         {t.isFinal ? (
                           t.error ? (
-                            <div className="flex items-center gap-2 text-red-600 text-[15px]">
+                            <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-[15px]">
                               <AlertCircle className="w-4 h-4" />
                               <span>{t.error}</span>
                             </div>
                           ) : (
                             <div className="flex items-start justify-between gap-2">
-                              <div className="text-[15px] leading-relaxed text-blue-700 font-medium">
+                              <div className="text-[15px] leading-relaxed text-blue-700 dark:text-blue-400 font-medium">
                                 {t.translated}
                                 {t.isTranslating && (
                                   t.translated ? (
@@ -824,8 +890,8 @@ export default function App() {
                                   className={cn(
                                     "p-1.5 rounded-full transition-colors flex-shrink-0",
                                     playingTTSId === t.id 
-                                      ? "bg-blue-100 text-blue-700 animate-pulse" 
-                                      : "hover:bg-blue-100 text-blue-600"
+                                      ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 animate-pulse" 
+                                      : "hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
                                   )}
                                   title={playingTTSId === t.id ? "停止朗讀" : "高音質朗讀翻譯結果"}
                                 >
@@ -841,7 +907,7 @@ export default function App() {
                             </div>
                           )
                         ) : (
-                          <div className="flex items-center gap-2 text-slate-400 text-sm">
+                          <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-sm">
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             <span>等待語音結束...</span>
                           </div>
@@ -855,6 +921,30 @@ export default function App() {
             )}
           </div>
         </div>
+
+        {/* Clear Confirm Modal */}
+        {showClearConfirm && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 max-w-sm w-full animate-in zoom-in-95">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">清除對話紀錄</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">確定要清除所有的對話紀錄嗎？此動作無法復原。</p>
+              <div className="flex gap-3 justify-end">
+                <button 
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleClear}
+                  className="px-4 py-2 rounded-xl text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+                >
+                  確定清除
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

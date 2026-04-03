@@ -247,7 +247,7 @@ Core_Rules:
       if (remainingUncommitted.trim()) {
         debounceTimerRef.current = setTimeout(() => {
           flushBuffer();
-        }, 1500);
+        }, 800);
       }
     };
 
@@ -258,6 +258,16 @@ Core_Rules:
         setIsRecording(false);
       } else if (event.error === 'network') {
         setErrorMsg('網路連線異常，無法進行語音辨識。');
+        setIsRecording(false);
+      } else if (event.error === 'no-speech') {
+        // 忽略 no-speech，讓它繼續錄音
+        console.log('No speech detected, continuing...');
+      } else if (event.error === 'audio-capture') {
+        setErrorMsg('找不到麥克風設備，請確認麥克風已正確連接。');
+        setIsRecording(false);
+      } else {
+        setErrorMsg(`語音辨識發生錯誤: ${event.error}`);
+        setIsRecording(false);
       }
     };
 
@@ -269,9 +279,9 @@ Core_Rules:
           try {
             recognition.start();
           } catch (e) {
-            // 忽略重啟錯誤
+            console.error('Restart recognition error:', e);
           }
-        }, 50);
+        }, 200); // 稍微增加重啟延遲，避免過度頻繁觸發
       }
     };
 
@@ -290,14 +300,17 @@ Core_Rules:
       }
     } else {
       // 開始錄音
+      setErrorMsg(null); // 清除先前的錯誤
       setIsRecording(true);
       
       const isSupported = initSpeechRecognition();
       if (isSupported && recognitionRef.current) {
         try {
           recognitionRef.current.start();
-        } catch (e) {
+        } catch (e: any) {
           console.error("Failed to start recognition:", e);
+          setErrorMsg(`無法啟動麥克風: ${e.message || '未知錯誤'}`);
+          setIsRecording(false);
         }
       }
     }

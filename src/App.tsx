@@ -185,11 +185,12 @@ export default function App() {
 
   // 暗色模式切換
   useEffect(() => {
+    const root = window.document.documentElement;
     if (isDarkMode) {
-      document.documentElement.classList.add('dark');
+      root.classList.add('dark');
       localStorage.setItem('theme', 'dark');
     } else {
-      document.documentElement.classList.remove('dark');
+      root.classList.remove('dark');
       localStorage.setItem('theme', 'light');
     }
   }, [isDarkMode]);
@@ -442,6 +443,7 @@ export default function App() {
     }
 
     const recognition = new SpeechRecognition();
+    recognition.lang = localLangRef.current;
     recognition.continuous = true; 
     recognition.interimResults = true; 
 
@@ -556,7 +558,7 @@ export default function App() {
           }
           debounceTimerRef.current = setTimeout(() => {
             flushBuffer();
-          }, 700); // 調整至 700ms，讓使用者有更充裕的停頓時間
+          }, 650); // 調整至 650ms，讓使用者有更充裕的停頓時間
         }
       } else {
         if (debounceTimerRef.current) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { cn } from './lib/utils';
 
@@ -33,6 +33,8 @@ export default function App() {
   const [targetLang, setTargetLang] = useState('th-TH');
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [showSettings, setShowSettings] = useState(false);
   
   const recognitionRef = useRef<any>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -61,6 +63,10 @@ export default function App() {
     targetLangRef.current = targetLang;
   }, [targetLang]);
 
+  useEffect(() => {
+    localStorage.setItem('gemini_api_key', userApiKey);
+  }, [userApiKey]);
+
   // 自動滾動到最新對話
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -76,19 +82,11 @@ export default function App() {
     ));
 
     try {
-      // 安全地讀取環境變數，避免在 Vercel 上因為 process 未定義而崩潰
-      let apiKey = '';
-      if (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) {
-        apiKey = process.env.GEMINI_API_KEY;
-      } else {
-        apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
+      if (!userApiKey) {
+        throw new Error("請先在上方設定您的 Gemini API 金鑰。");
       }
       
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey === "undefined") {
-        throw new Error("未偵測到 GEMINI_API_KEY。本地端請檢查環境變數設定；若部署於 Vercel，請至 Environment Variables 設定 VITE_GEMINI_API_KEY 並重新部署。");
-      }
-      
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: userApiKey });
       
       // 取得最近 3 筆已完成的對話作為上下文歷史
       const history = transcriptsRef.current
@@ -96,14 +94,15 @@ export default function App() {
         .slice(-3)
         .map(t => `Previous Sentence: ${t.original}`);
 
-      const systemInstruction = `Version: v1.3
+      const systemInstruction = `Version: v1.4
 Role: 專業多國語言即時精準口譯專家
 Description: 具備豐富跨國會議、高階商業談判與外交場合經驗的頂級口譯員。能即時、精確且流暢地在多國語言之間進行雙向轉換。
 Core_Rules:
   1_Absolute_Accuracy: 翻譯必須忠於原意。
   2_Context_and_Culture: 翻譯時需考量目標語言的文化習慣，將生硬的直譯轉化為符合當地母語人士表達習慣的自然用語。
   3_Contextual_Correction (Critical): 語音辨識（STT）常有同音異字或辨識錯誤。請務必參考提供的「[Context History] 對話歷史上下文」。若發現當前輸入的語句與上下文語意完全沒有連貫性，或出現明顯的語音辨識錯誤，請自動依據上下文邏輯與目標語言國家的習慣用語，推斷並「修正」原意後，再進行翻譯。
-  4_Direct_Output: 模擬即時口譯的極高效率，直接輸出翻譯結果。絕對禁止加入任何解釋、註解、括號說明（如 [註：...]）或對話機器人的過渡語。只能輸出純粹的翻譯結果。`;
+  4_Humanization_and_Fluency (Critical): 說話者的語速、音量變化或口音可能導致輸入的句子破碎或結構不完整。請發揮人類口譯員的專業，自動腦補、平滑化這些破碎的語句，使其在目標語言中聽起來自然、連貫且符合人類說話的抑揚頓挫。
+  5_Direct_Output: 模擬即時口譯的極高效率，直接輸出翻譯結果。絕對禁止加入任何解釋、註解、括號說明（如 [註：...]）或對話機器人的過渡語。只能輸出純粹的翻譯結果。`;
 
       let prompt = `[Target Language: ${tgtLangName}]\n\n`;
       if (history.length > 0) {
@@ -302,7 +301,7 @@ Core_Rules:
   }
 
   // 切換錄音狀態
-  const toggleRecording = () => {
+  const toggleRecording = async () => {
     if (isRecording) {
       // 停止錄音
       setIsRecording(false);
@@ -311,6 +310,21 @@ Core_Rules:
         recognitionRef.current.stop();
       }
     } else {
+      if (!userApiKey) {
+        setErrorMsg('請先在上方設定您的 Gemini API 金鑰。');
+        setShowSettings(true);
+        return;
+      }
+
+      // 開始錄音前，先明確請求麥克風權限 (解決 iframe 內權限問題)
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        console.error("Microphone permission denied:", err);
+        setErrorMsg('麥克風權限遭拒，請允許麥克風存取權限。');
+        return;
+      }
+
       // 開始錄音
       setErrorMsg(null); // 清除先前的錯誤
       setIsRecording(true);
@@ -340,6 +354,13 @@ Core_Rules:
             <h1 className="text-xl font-semibold tracking-tight">AI 智慧口譯專家</h1>
           </div>
           <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
+            <button 
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+              title="設定 API 金鑰"
+            >
+              <Settings className="w-5 h-5 text-slate-600" />
+            </button>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-500"></span>
               系統就緒
@@ -350,6 +371,34 @@ Core_Rules:
 
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 overflow-hidden">
         
+        {/* API Key 設定區塊 */}
+        {showSettings && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex-shrink-0 animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Key className="w-5 h-5 text-blue-600" />
+              <h2 className="text-lg font-semibold text-slate-800">API 金鑰設定</h2>
+            </div>
+            <p className="text-sm text-slate-500 mb-4">
+              請輸入您的 Gemini API 金鑰。此金鑰僅會儲存在您的瀏覽器本地端，不會上傳至任何伺服器。
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={userApiKey}
+                onChange={(e) => setUserApiKey(e.target.value)}
+                placeholder="AIzaSy..."
+                className="flex-1 px-4 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              />
+              <button
+                onClick={() => setShowSettings(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors"
+              >
+                完成
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 控制面板：目標語言選擇與錄音按鈕 */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-col items-center justify-center flex-shrink-0">
           <div className="text-center mb-3">

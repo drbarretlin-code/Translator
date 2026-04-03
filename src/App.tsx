@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, Square as StopIcon } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { cn } from './lib/utils';
 
@@ -139,9 +139,13 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [showSettings, setShowSettings] = useState(false);
+  const [playingTTSId, setPlayingTTSId] = useState<string | null>(null);
+  const [loadingTTSId, setLoadingTTSId] = useState<string | null>(null);
   
   const recognitionRef = useRef<any>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   
   // 用於處理合理延遲與緩衝記憶區的 Refs
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -181,6 +185,149 @@ export default function App() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcripts]);
 
+  // 預先載入 Web Speech API 語音清單
+  useEffect(() => {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }, []);
+
+  // 停止當前播放的語音
+  const stopAudio = () => {
+    if (audioSourceRef.current) {
+      try {
+        audioSourceRef.current.stop();
+      } catch (e) {}
+      audioSourceRef.current = null;
+    }
+    setPlayingTTSId(null);
+    setLoadingTTSId(null);
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+  };
+
+  // 備用：瀏覽器內建語音合成 (Web Speech API)
+  const fallbackSpeakText = (text: string, targetLang: string) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = targetLang;
+    utterance.rate = 0.85; // 放慢語速，讓發音更清晰
+    utterance.pitch = 1.05; // 稍微提高音調
+    
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      const baseLang = targetLang.split('-')[0];
+      const matchedVoices = voices.filter(v => v.lang.toLowerCase().startsWith(baseLang.toLowerCase()));
+      
+      if (matchedVoices.length > 0) {
+        // 優先挑選高品質語音
+        const bestVoice = matchedVoices.find(v => 
+          v.name.includes('Google') || 
+          v.name.includes('Premium') || 
+          v.name.includes('Enhanced') || 
+          v.name.includes('Siri') ||
+          v.name.includes('Microsoft')
+        ) || matchedVoices[0];
+        
+        utterance.voice = bestVoice;
+      }
+    }
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // 語音朗讀功能 (優先使用 Gemini TTS 獲得極致音質)
+  const speakText = async (id: string, text: string, targetLang: string) => {
+    // 如果正在播放同一個，則停止
+    if (playingTTSId === id || loadingTTSId === id) {
+      stopAudio();
+      return;
+    }
+
+    stopAudio();
+
+    if (!userApiKey) {
+      // 如果沒有 API Key，退回使用瀏覽器內建語音
+      fallbackSpeakText(text, targetLang);
+      return;
+    }
+
+    try {
+      setLoadingTTSId(id);
+      const ai = new GoogleGenAI({ apiKey: userApiKey });
+      
+      // 加上語言提示，確保 AI 用正確的語言發音
+      const prompt = `Please read the following text in ${targetLang} naturally and clearly: ${text}`;
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Aoede' }, // Aoede 聲音清晰自然
+            },
+          },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio) {
+        if (!audioContextRef.current) {
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        }
+        const audioCtx = audioContextRef.current;
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
+
+        const binaryString = atob(base64Audio);
+        const buffer = new ArrayBuffer(binaryString.length);
+        const view = new Uint8Array(buffer);
+        for (let i = 0; i < binaryString.length; i++) {
+          view[i] = binaryString.charCodeAt(i);
+        }
+        
+        // Gemini TTS 回傳 16-bit PCM
+        const int16View = new Int16Array(buffer);
+        const pcmData = new Float32Array(int16View.length);
+        for (let i = 0; i < int16View.length; i++) {
+          pcmData[i] = int16View[i] / 32768;
+        }
+        
+        const audioBuffer = audioCtx.createBuffer(1, pcmData.length, 24000);
+        audioBuffer.getChannelData(0).set(pcmData);
+        
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioCtx.destination);
+        
+        source.onended = () => {
+          setPlayingTTSId(null);
+        };
+        
+        audioSourceRef.current = source;
+        setLoadingTTSId(null);
+        setPlayingTTSId(id);
+        source.start();
+      } else {
+        throw new Error("No audio data received");
+      }
+    } catch (err) {
+      console.error("Gemini TTS Error:", err);
+      setLoadingTTSId(null);
+      // 發生錯誤時，退回使用瀏覽器內建語音
+      fallbackSpeakText(text, targetLang);
+    }
+  };
+
   // 執行翻譯 (直接在前端呼叫 Gemini API)
   const translateText = async (id: string, text: string) => {
     const localLangName = LANGUAGES.find(l => l.id === localLangRef.current)?.name || localLangRef.current;
@@ -218,6 +365,11 @@ export default function App() {
         ));
       }
 
+      // 判斷翻譯結果的目標語言代碼，以便朗讀
+      // 這裡我們簡單假設：如果輸入是 localLang，翻譯結果就是 clientLang，反之亦然。
+      // 為了精確，我們可以在這裡讓 AI 回傳 JSON，但為了速度，我們直接用一個簡單的 heuristic 或讓使用者手動點擊。
+      // 我們將在 UI 中傳入 clientLang 或 localLang。
+      
       setTranscripts(prev => prev.map(t => 
         t.id === id ? { ...t, isTranslating: false } : t
       ));
@@ -523,11 +675,11 @@ export default function App() {
         )}
 
         {/* 控制面板：互譯功能選擇與錄音按鈕 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-row items-center justify-between flex-shrink-0 gap-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-row items-center justify-between flex-shrink-0 gap-2 sm:gap-4">
           
           {/* 左側國旗 (Local) */}
-          <div className="hidden md:flex items-center justify-center flex-shrink-0">
-            <CountryFlag langId={localLang} className="w-16 h-11 rounded-md shadow-sm border border-slate-200 object-cover" />
+          <div className="flex items-center justify-center flex-shrink-0">
+            <CountryFlag langId={localLang} className="w-12 h-8 sm:w-16 sm:h-11 rounded-md shadow-sm border border-slate-200 object-cover" />
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full max-w-2xl mx-auto">
@@ -589,8 +741,8 @@ export default function App() {
           </div>
 
           {/* 右側國旗 (Client) */}
-          <div className="hidden md:flex items-center justify-center flex-shrink-0">
-            <CountryFlag langId={clientLang} className="w-16 h-11 rounded-md shadow-sm border border-slate-200 object-cover" />
+          <div className="flex items-center justify-center flex-shrink-0">
+            <CountryFlag langId={clientLang} className="w-12 h-8 sm:w-16 sm:h-11 rounded-md shadow-sm border border-slate-200 object-cover" />
           </div>
         </div>
 
@@ -614,81 +766,93 @@ export default function App() {
             )}
           </div>
           
-          <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5">
             {transcripts.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4 min-h-[200px]">
                 <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
                   <Languages className="w-8 h-8 text-slate-300" />
                 </div>
                 <p className="text-sm">點擊上方按鈕開始對話</p>
               </div>
             ) : (
-              transcripts.map((t) => {
-                return (
-                  <div 
-                    key={t.id} 
-                    className={cn(
-                      "flex flex-col gap-2 transition-all duration-300",
-                      !t.isFinal && "opacity-60"
-                    )}
-                  >
-                    {/* 原文 */}
-                    <div className="flex items-start gap-3 justify-start">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 mt-1">
-                        <Mic className="w-4 h-4 text-slate-500" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start content-start">
+                {transcripts.map((t) => {
+                  return (
+                    <div 
+                      key={t.id} 
+                      className={cn(
+                        "flex flex-col gap-3 bg-slate-50 border border-slate-100 rounded-2xl p-4 transition-all duration-300 shadow-sm",
+                        !t.isFinal && "opacity-60"
+                      )}
+                    >
+                      {/* 原文 (Local/Client 之一) */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="text-[15px] leading-relaxed text-slate-700">
+                          {t.original}
+                        </div>
                       </div>
-                      <div className="rounded-2xl px-4 py-3 text-[15px] leading-relaxed max-w-[85%] bg-slate-100 text-slate-700 rounded-tl-none">
-                        {t.original}
-                      </div>
-                    </div>
-                    
-                    {/* 翻譯文 */}
-                    {t.isFinal ? (
-                      <div className="flex items-start gap-3 justify-end">
-                        <div className={cn(
-                          "rounded-2xl px-4 py-3 text-[15px] leading-relaxed max-w-[85%] shadow-sm",
-                          t.error 
-                            ? "bg-red-50 text-red-600 border border-red-100" 
-                            : "bg-blue-600 text-white rounded-tr-none"
-                        )}>
-                          {t.error ? (
-                            <div className="flex items-center gap-2">
+                      
+                      {/* 分隔線 */}
+                      <div className="h-px w-full bg-slate-200"></div>
+                      
+                      {/* 翻譯文 (對應的另一端) */}
+                      <div className="flex flex-col gap-1.5">
+                        {t.isFinal ? (
+                          t.error ? (
+                            <div className="flex items-center gap-2 text-red-600 text-[15px]">
                               <AlertCircle className="w-4 h-4" />
                               <span>{t.error}</span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1 flex-wrap">
-                              <span>{t.translated}</span>
-                              {t.isTranslating && (
-                                t.translated ? (
-                                  <span className="w-1.5 h-4 bg-white/70 animate-pulse inline-block ml-1 align-middle"></span>
-                                ) : (
-                                  <div className="flex items-center gap-2 text-white/80">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="text-[15px] leading-relaxed text-blue-700 font-medium">
+                                {t.translated}
+                                {t.isTranslating && (
+                                  t.translated ? (
+                                    <span className="w-1.5 h-4 bg-blue-400/70 animate-pulse inline-block ml-1 align-middle"></span>
+                                  ) : (
+                                    <div className="flex items-center gap-2 text-blue-500/80">
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      <span className="text-sm">翻譯中...</span>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                              {!t.isTranslating && t.translated && (
+                                <button 
+                                  onClick={() => speakText(t.id, t.translated, clientLang)}
+                                  className={cn(
+                                    "p-1.5 rounded-full transition-colors flex-shrink-0",
+                                    playingTTSId === t.id 
+                                      ? "bg-blue-100 text-blue-700 animate-pulse" 
+                                      : "hover:bg-blue-100 text-blue-600"
+                                  )}
+                                  title={playingTTSId === t.id ? "停止朗讀" : "高音質朗讀翻譯結果"}
+                                >
+                                  {loadingTTSId === t.id ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    <span className="text-sm">翻譯中...</span>
-                                  </div>
-                                )
+                                  ) : playingTTSId === t.id ? (
+                                    <StopIcon className="w-4 h-4 fill-current" />
+                                  ) : (
+                                    <Volume2 className="w-4 h-4" />
+                                  )}
+                                </button>
                               )}
                             </div>
-                          )}
-                        </div>
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-1">
-                          <Globe2 className="w-4 h-4 text-blue-600" />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-3 justify-end">
-                         <div className="flex items-center gap-2 text-slate-400 text-sm px-2">
+                          )
+                        ) : (
+                          <div className="flex items-center gap-2 text-slate-400 text-sm">
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             <span>等待語音結束...</span>
-                         </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })
+                    </div>
+                  );
+                })}
+                <div ref={transcriptEndRef} className="col-span-full" />
+              </div>
             )}
-            <div ref={transcriptEndRef} />
           </div>
         </div>
       </main>

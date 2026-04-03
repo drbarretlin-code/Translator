@@ -556,7 +556,7 @@ export default function App() {
           }
           debounceTimerRef.current = setTimeout(() => {
             flushBuffer();
-          }, 500); // 調整至 500ms，讓使用者有更充裕的停頓時間
+          }, 700); // 調整至 700ms，讓使用者有更充裕的停頓時間
         }
       } else {
         if (debounceTimerRef.current) {
@@ -661,11 +661,11 @@ export default function App() {
       {/* Header */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 shadow-sm z-10 flex-shrink-0 transition-colors duration-300">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-blue-600 p-2 rounded-lg">
-              <Globe2 className="w-6 h-6 text-white" />
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center min-w-[40px]">
+              <span className="text-red-600 dark:text-red-500 font-bold text-2xl tracking-wider">TUC</span>
             </div>
-            <h1 className="text-xl font-semibold tracking-tight">AI 智慧口譯專家</h1>
+            <h1 className="text-xl font-semibold tracking-tight">AI Smart Interpreter</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
             <button 
@@ -780,7 +780,7 @@ export default function App() {
                 {isRecording ? (
                   <><Square className="w-4 h-4 fill-current" /> 停止錄音</>
                 ) : (
-                  <><Mic className="w-4 h-4" /> 開始說話</>
+                  <><Mic className="w-4 h-4" /> Speaking...</>
                 )}
               </button>
             </div>

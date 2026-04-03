@@ -5,15 +5,15 @@ import { cn } from './lib/utils';
 
 // 定義支援的語言與腔調清單
 const LANGUAGES = [
-  { id: 'en-US', name: '美國英語 (English)' },
-  { id: 'en-GB', name: '英國英語 (English)' },
-  { id: 'ja-JP', name: '日語 (日本語)' },
+  { id: 'en-US', name: '美語 (美國)' },
+  { id: 'en-GB', name: '英語 (英國)' },
+  { id: 'ja-JP', name: '日語 (日本)' },
   { id: 'fr-FR', name: '法語 (Français)' },
   { id: 'th-TH', name: '泰語 (ไทย)' },
   { id: 'vi-VN', name: '越南語 (Tiếng Việt)' },
   { id: 'id-ID', name: '印尼語 (Bahasa Indonesia)' },
   { id: 'ms-MY', name: '馬來西亞語 (Bahasa Melayu)' },
-  { id: 'zh-TW', name: '繁體中文 (繁體中文)' },
+  { id: 'zh-TW', name: '繁中 (台灣)' },
 ];
 
 // 定義對話紀錄的資料結構
@@ -141,21 +141,16 @@ export default function App() {
   const [playingTTSId, setPlayingTTSId] = useState<string | null>(null);
   const [loadingTTSId, setLoadingTTSId] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [uiLang, setUiLang] = useState(() => localStorage.getItem('ui_lang') || 'zh-TW');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   
-  // 管理者設定相關狀態
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showAdminSettings, setShowAdminSettings] = useState(false);
-  const [adminPasswordInput, setAdminPasswordInput] = useState('');
-  const [adminLoginError, setAdminLoginError] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   
   const [silenceThreshold, setSilenceThreshold] = useState(() => Number(localStorage.getItem('silence_threshold')) || 650);
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
-
-  const adminPassword = '7171165';
   
   const recognitionRef = useRef<any>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -207,6 +202,10 @@ export default function App() {
     localStorage.setItem('header_title_2', headerTitle2);
   }, [headerTitle2]);
 
+  useEffect(() => {
+    localStorage.setItem('ui_lang', uiLang);
+  }, [uiLang]);
+
   // 暗色模式切換
   useEffect(() => {
     const root = window.document.documentElement;
@@ -218,6 +217,94 @@ export default function App() {
       localStorage.setItem('theme', 'light');
     }
   }, [isDarkMode]);
+
+  // 介面翻譯
+  const getUiText = (key: string) => {
+    const translations: Record<string, Record<string, string>> = {
+      'zh-TW': {
+        'title1': headerTitle1,
+        'title2': headerTitle2,
+        'local': 'Local (本地端)',
+        'client': 'Client (客戶端)',
+        'systemReady': '系統就緒',
+        'adminSettings': '管理者設定',
+        'darkMode': isDarkMode ? '切換至亮色模式' : '切換至暗色模式',
+      },
+      'en-US': {
+        'title1': headerTitle1,
+        'title2': headerTitle2,
+        'local': 'Local',
+        'client': 'Client',
+        'systemReady': 'System Ready',
+        'adminSettings': 'Admin Settings',
+        'darkMode': isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+      },
+      'ja-JP': {
+        'title1': headerTitle1,
+        'title2': headerTitle2,
+        'local': 'ローカル',
+        'client': 'クライアント',
+        'systemReady': 'システム準備完了',
+        'adminSettings': '管理者設定',
+        'darkMode': isDarkMode ? 'ライトモードへ' : 'ダークモードへ',
+      },
+      'en-GB': {
+        'title1': headerTitle1,
+        'title2': headerTitle2,
+        'local': 'Local',
+        'client': 'Client',
+        'systemReady': 'System Ready',
+        'adminSettings': 'Admin Settings',
+        'darkMode': isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+      },
+      'fr-FR': {
+        'title1': headerTitle1,
+        'title2': headerTitle2,
+        'local': 'Local',
+        'client': 'Client',
+        'systemReady': 'Système prêt',
+        'adminSettings': 'Paramètres admin',
+        'darkMode': isDarkMode ? 'Mode clair' : 'Mode sombre',
+      },
+      'th-TH': {
+        'title1': headerTitle1,
+        'title2': headerTitle2,
+        'local': 'ท้องถิ่น',
+        'client': 'ลูกค้า',
+        'systemReady': 'ระบบพร้อม',
+        'adminSettings': 'การตั้งค่าผู้ดูแลระบบ',
+        'darkMode': isDarkMode ? 'โหมดสว่าง' : 'โหมดมืด',
+      },
+      'vi-VN': {
+        'title1': headerTitle1,
+        'title2': headerTitle2,
+        'local': 'Địa phương',
+        'client': 'Khách hàng',
+        'systemReady': 'Hệ thống sẵn sàng',
+        'adminSettings': 'Cài đặt quản trị',
+        'darkMode': isDarkMode ? 'Chế độ sáng' : 'Chế độ tối',
+      },
+      'id-ID': {
+        'title1': headerTitle1,
+        'title2': headerTitle2,
+        'local': 'Lokal',
+        'client': 'Klien',
+        'systemReady': 'Sistem siap',
+        'adminSettings': 'Pengaturan admin',
+        'darkMode': isDarkMode ? 'Mode terang' : 'Mode gelap',
+      },
+      'ms-MY': {
+        'title1': headerTitle1,
+        'title2': headerTitle2,
+        'local': 'Tempatan',
+        'client': 'Pelanggan',
+        'systemReady': 'Sistem sedia',
+        'adminSettings': 'Tetapan admin',
+        'darkMode': isDarkMode ? 'Mod cerah' : 'Mod gelap',
+      }
+    };
+    return translations[uiLang]?.[key] || translations['zh-TW'][key] || key;
+  };
 
   // 清除對話紀錄
   const handleClear = () => {
@@ -291,7 +378,7 @@ export default function App() {
   };
 
   // 備用：瀏覽器內建語音合成 (Web Speech API)
-  const fallbackSpeakText = (text: string, targetLang: string) => {
+  const fallbackSpeakText = (id: string, text: string, targetLang: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     
@@ -319,6 +406,10 @@ export default function App() {
       }
     }
     
+    utterance.onend = () => {
+      setPlayingTTSId(null);
+    };
+    
     window.speechSynthesis.speak(utterance);
   };
 
@@ -334,7 +425,7 @@ export default function App() {
 
     if (!userApiKey) {
       // 如果沒有 API Key，退回使用瀏覽器內建語音
-      fallbackSpeakText(text, targetLang);
+      fallbackSpeakText(id, text, targetLang);
       return;
     }
 
@@ -404,7 +495,7 @@ export default function App() {
       console.error("Gemini TTS Error:", err);
       setLoadingTTSId(null);
       // 發生錯誤時，退回使用瀏覽器內建語音
-      fallbackSpeakText(text, targetLang);
+      fallbackSpeakText(id, text, targetLang);
     }
   };
 
@@ -668,7 +759,7 @@ export default function App() {
     } else {
       if (!userApiKey) {
         setErrorMsg('請先在管理者設定中配置您的 Gemini API 金鑰。');
-        setShowAdminLogin(true);
+        setShowAdminSettings(true);
         return;
       }
 
@@ -705,28 +796,28 @@ export default function App() {
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center min-w-[40px]">
-              <span className="text-red-600 dark:text-red-500 font-bold text-2xl tracking-wider">{headerTitle1}</span>
+              <span className="text-red-600 dark:text-red-500 font-bold text-2xl tracking-wider">{getUiText('title1')}</span>
             </div>
-            <h1 className="text-xl font-semibold tracking-tight">{headerTitle2}</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{getUiText('title2')}</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
             <button 
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-              title={isDarkMode ? "切換至亮色模式" : "切換至暗色模式"}
+              title={getUiText('darkMode')}
             >
               {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-slate-600" />}
             </button>
             <button 
-              onClick={() => setShowAdminLogin(true)}
+              onClick={() => setShowAdminSettings(true)}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-              title="管理者設定"
+              title={getUiText('adminSettings')}
             >
               <Lock className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             </button>
             <span className="hidden sm:flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-500"></span>
-              系統就緒
+              {getUiText('systemReady')}
             </span>
           </div>
         </div>
@@ -735,77 +826,101 @@ export default function App() {
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 overflow-hidden relative">
         
         {/* API Key 設定區塊 */}
-        {/* 管理者登入彈窗 */}
-      {showAdminLogin && (
+        {/* 管理者設定彈窗 */}
+      {showAdminSettings && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold flex items-center gap-2">
-                  <Lock className="w-5 h-5 text-blue-500" /> 管理者登入
-                </h3>
-                <button 
-                  onClick={() => {
-                    setShowAdminLogin(false);
-                    setAdminPasswordInput('');
-                    setAdminLoginError(false);
-                  }}
-                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    請輸入管理員密碼
-                  </label>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <Lock className="w-5 h-5 text-blue-500" /> 管理者設定
+              </h3>
+              <button 
+                onClick={() => setShowAdminSettings(false)}
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="space-y-6">
+                {/* API Key 設定區塊 */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Key className="w-4 h-4 text-blue-500" /> API 金鑰設定
+                  </h4>
                   <input
                     type="password"
-                    value={adminPasswordInput}
-                    onChange={(e) => {
-                      setAdminPasswordInput(e.target.value);
-                      setAdminLoginError(false);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        if (adminPasswordInput === adminPassword) {
-                          setShowAdminLogin(false);
-                          setShowAdminSettings(true);
-                          setAdminPasswordInput('');
-                        } else {
-                          setAdminLoginError(true);
-                        }
-                      }
-                    }}
-                    className={cn(
-                      "w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all",
-                      adminLoginError ? "border-red-500 ring-1 ring-red-500" : "border-slate-200 dark:border-slate-700"
-                    )}
-                    placeholder="••••••••"
-                    autoFocus
+                    value={userApiKey}
+                    onChange={(e) => setUserApiKey(e.target.value)}
+                    placeholder="輸入 Gemini API 金鑰 (僅儲存於本地)"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   />
-                  {adminLoginError && (
-                    <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> 密碼錯誤，請重新輸入。
-                    </p>
-                  )}
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    設定 Gemini API 金鑰以啟用翻譯功能。
+                  </p>
                 </div>
-                
+
+                <hr className="border-slate-100 dark:border-slate-800" />
+
+                {/* 介面語言設定 */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Globe2 className="w-4 h-4 text-green-500" /> 介面語言設定
+                  </h4>
+                  <select
+                    value={uiLang}
+                    onChange={(e) => setUiLang(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  >
+                    {LANGUAGES.map(lang => (
+                      <option key={`ui-${lang.id}`} value={lang.id}>{lang.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <hr className="border-slate-100 dark:border-slate-800" />
+
+                {/* 頂部標題設定 */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Languages className="w-4 h-4 text-purple-500" /> 頂部標題設定
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">標題 1</label>
+                      <input
+                        type="text"
+                        value={headerTitle1}
+                        onChange={(e) => setHeaderTitle1(e.target.value)}
+                        className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">標題 2</label>
+                      <input
+                        type="text"
+                        value={headerTitle2}
+                        onChange={(e) => setHeaderTitle2(e.target.value)}
+                        className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-8">
                 <button
                   onClick={() => {
-                    if (adminPasswordInput === adminPassword) {
-                      setShowAdminLogin(false);
-                      setShowAdminSettings(true);
-                      setAdminPasswordInput('');
-                    } else {
-                      setAdminLoginError(true);
+                    setShowAdminSettings(false);
+                    // 立即生效：如果正在錄音，重新初始化
+                    if (isRecording) {
+                      initSpeechRecognition();
                     }
                   }}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-blue-500/20"
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98]"
                 >
-                  登入
+                  儲存並關閉
                 </button>
               </div>
             </div>
@@ -894,6 +1009,24 @@ export default function App() {
 
                 <hr className="border-slate-100 dark:border-slate-800" />
 
+                {/* 介面語言設定 */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Globe2 className="w-4 h-4 text-green-500" /> 介面語言設定
+                  </h4>
+                  <select
+                    value={uiLang}
+                    onChange={(e) => setUiLang(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  >
+                    {LANGUAGES.map(lang => (
+                      <option key={`ui-${lang.id}`} value={lang.id}>{lang.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <hr className="border-slate-100 dark:border-slate-800" />
+
                 {/* 頂部標題設定 */}
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -951,7 +1084,7 @@ export default function App() {
 
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full max-w-2xl mx-auto">
             <div className="w-full sm:w-1/3">
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">Local (本地端)</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">{getUiText('local')}</label>
               <div className="relative">
                 <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
                 <select 
@@ -972,7 +1105,7 @@ export default function App() {
             </div>
 
             <div className="w-full sm:w-1/3">
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">Client (客戶端)</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">{getUiText('client')}</label>
               <div className="relative">
                 <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
                 <select 
@@ -987,6 +1120,8 @@ export default function App() {
                 </select>
               </div>
             </div>
+
+            {/* 自動朗讀開關移除 */}
             
             <div className="w-full sm:w-1/3 flex items-end h-full">
               <button

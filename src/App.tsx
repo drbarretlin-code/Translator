@@ -80,7 +80,7 @@ export default function App() {
       const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
       
       if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey === "undefined") {
-        throw new Error("請在 Vercel 的 Environment Variables 中設定 GEMINI_API_KEY，設定後請務必重新部署 (Redeploy) 才會生效。");
+        throw new Error("未偵測到 GEMINI_API_KEY。本地端請檢查環境變數設定；若部署於 Vercel，請至 Environment Variables 設定並重新部署。");
       }
       
       const ai = new GoogleGenAI({ apiKey });
@@ -265,6 +265,9 @@ Core_Rules:
       } else if (event.error === 'audio-capture') {
         setErrorMsg('找不到麥克風設備，請確認麥克風已正確連接。');
         setIsRecording(false);
+      } else if (event.error === 'aborted') {
+        // 忽略 aborted，這通常是因為使用者手動停止，或是瀏覽器自動中斷
+        console.log('Speech recognition aborted.');
       } else {
         setErrorMsg(`語音辨識發生錯誤: ${event.error}`);
         setIsRecording(false);

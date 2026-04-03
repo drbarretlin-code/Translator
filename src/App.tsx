@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Volume2, Languages, ArrowRightLeft } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages } from 'lucide-react';
+import { GoogleGenAI } from '@google/genai';
 import { cn } from './lib/utils';
 
 // 定義支援的語言與腔調清單
@@ -65,85 +66,75 @@ export default function App() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcripts]);
 
-  // 發送翻譯請求 (使用 Fetch 與 SSE)
-  const handleTranslationRequest = async (id: string, text: string, tgtLang: string) => {
-    if (!text.trim()) return;
-    
+  // 執行翻譯 (直接在前端呼叫 Gemini API)
+  const translateText = async (id: string, text: string, tgtLang: string) => {
     const tgtLangName = LANGUAGES.find(l => l.id === tgtLang)?.name || tgtLang;
     
-    // 取得最近 3 筆已完成的對話作為上下文歷史
-    const history = transcriptsRef.current
-      .filter(t => t.isFinal && t.id !== id && t.original)
-      .slice(-3)
-      .map(t => ({ original: t.original }));
-    
     setTranscripts(prev => prev.map(t => 
-      t.id === id ? { ...t, isTranslating: true, isFinal: true, targetLang: tgtLangName } : t
+      t.id === id ? { ...t, isTranslating: true, targetLang: tgtLangName } : t
     ));
 
     try {
-      const response = await fetch('/api/translate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          id,
-          text,
-          targetLang: tgtLangName,
-          history
-        })
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+        throw new Error("請在 AI Studio 的 Secrets 面板中設定有效的 GEMINI_API_KEY。");
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
+      
+      // 取得最近 3 筆已完成的對話作為上下文歷史
+      const history = transcriptsRef.current
+        .filter(t => t.isFinal && t.translated && t.id !== id)
+        .slice(-3)
+        .map(t => `Previous Sentence: ${t.original}`);
+
+      const systemInstruction = `Version: v1.3
+Role: 專業多國語言即時精準口譯專家
+Description: 具備豐富跨國會議、高階商業談判與外交場合經驗的頂級口譯員。能即時、精確且流暢地在多國語言之間進行雙向轉換。
+Core_Rules:
+  1_Absolute_Accuracy: 翻譯必須忠於原意。
+  2_Context_and_Culture: 翻譯時需考量目標語言的文化習慣，將生硬的直譯轉化為符合當地母語人士表達習慣的自然用語。
+  3_Contextual_Correction (Critical): 語音辨識（STT）常有同音異字或辨識錯誤。請務必參考提供的「[Context History] 對話歷史上下文」。若發現當前輸入的語句與上下文語意完全沒有連貫性，或出現明顯的語音辨識錯誤，請自動依據上下文邏輯與目標語言國家的習慣用語，推斷並「修正」原意後，再進行翻譯。
+  4_Direct_Output: 模擬即時口譯的極高效率，直接輸出翻譯結果。絕對禁止加入任何解釋、註解、括號說明（如 [註：...]）或對話機器人的過渡語。只能輸出純粹的翻譯結果。`;
+
+      let prompt = `[Target Language: ${tgtLangName}]\n\n`;
+      if (history.length > 0) {
+        prompt += `[Context History]\n${history.join('\n')}\n\n`;
+      }
+      prompt += `[Current Speech to Translate]\n${text}`;
+
+      const responseStream = await ai.models.generateContentStream({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          systemInstruction,
+          temperature: 0.3,
+        }
       });
 
-      if (!response.body) throw new Error('No response body');
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === 'stream') {
-                setTranscripts(prev => prev.map(t => 
-                  t.id === data.id 
-                    ? { ...t, translated: data.translated, isTranslating: true } 
-                    : t
-                ));
-              } else if (data.type === 'response') {
-                setTranscripts(prev => prev.map(t => 
-                  t.id === data.id 
-                    ? { ...t, translated: data.translated, isTranslating: false } 
-                    : t
-                ));
-              } else if (data.type === 'error') {
-                setTranscripts(prev => prev.map(t => 
-                  t.id === data.id 
-                    ? { ...t, error: data.error, isTranslating: false } 
-                    : t
-                ));
-              }
-            } catch (e) {
-              console.error('Failed to parse SSE data', e);
-            }
-          }
-        }
+      let fullTranslation = "";
+      for await (const chunk of responseStream) {
+        fullTranslation += chunk.text || "";
+        setTranscripts(prev => prev.map(t => 
+          t.id === id ? { ...t, translated: fullTranslation } : t
+        ));
       }
-    } catch (error) {
-      console.error('Translation request failed:', error);
+
       setTranscripts(prev => prev.map(t => 
-        t.id === id 
-          ? { ...t, error: '連線失敗，請檢查網路狀態或伺服器設定', isTranslating: false } 
-          : t
+        t.id === id ? { ...t, isTranslating: false } : t
+      ));
+
+    } catch (error: any) {
+      console.error("Translation error:", error);
+      let errorMessage = "翻譯失敗，請檢查網路狀態或 API 金鑰。";
+      if (error.message && error.message.includes("API key not valid")) {
+        errorMessage = "API 金鑰無效，請檢查您的 GEMINI_API_KEY 設定。";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setTranscripts(prev => prev.map(t => 
+        t.id === id ? { ...t, error: errorMessage, isTranslating: false } : t
       ));
     }
   };
@@ -164,7 +155,6 @@ export default function App() {
     const recognition = new SpeechRecognition();
     recognition.continuous = true; 
     recognition.interimResults = true; 
-    // 不設定 recognition.lang，讓瀏覽器自動偵測或使用預設語言
 
     const flushBuffer = () => {
       if (debounceTimerRef.current) {
@@ -176,7 +166,7 @@ export default function App() {
       }
       const textToSend = sessionText.substring(sessionCommittedLengthRef.current).trim();
       if (currentTranscriptIdRef.current && textToSend) {
-         handleTranslationRequest(currentTranscriptIdRef.current, textToSend, targetLangRef.current);
+         translateText(currentTranscriptIdRef.current, textToSend, targetLangRef.current);
          sessionCommittedLengthRef.current = sessionText.length;
          currentTranscriptIdRef.current = '';
       }
@@ -243,7 +233,7 @@ export default function App() {
       if (sessionFinals.length > sessionCommittedLengthRef.current) {
         const textToSend = sessionFinals.substring(sessionCommittedLengthRef.current).trim();
         if (textToSend) {
-          handleTranslationRequest(currentTranscriptIdRef.current, textToSend, targetLangRef.current);
+          translateText(currentTranscriptIdRef.current, textToSend, targetLangRef.current);
           sessionCommittedLengthRef.current = sessionFinals.length;
           currentTranscriptIdRef.current = ''; // 重置 ID，讓下一句話產生新的對話框
         }
@@ -254,7 +244,7 @@ export default function App() {
       if (remainingUncommitted.trim()) {
         debounceTimerRef.current = setTimeout(() => {
           flushBuffer();
-        }, 500);
+        }, 1500);
       }
     };
 

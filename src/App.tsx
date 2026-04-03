@@ -173,10 +173,28 @@ Core_Rules:
         sessionCommittedLengthRef.current = sessionText.length;
       }
       const textToSend = sessionText.substring(sessionCommittedLengthRef.current).trim();
-      if (currentTranscriptIdRef.current && textToSend) {
-         translateText(currentTranscriptIdRef.current, textToSend, targetLangRef.current);
-         sessionCommittedLengthRef.current = sessionText.length;
-         currentTranscriptIdRef.current = '';
+      
+      if (textToSend) {
+        let idToUse = currentTranscriptIdRef.current;
+        if (!idToUse) {
+          idToUse = 'temp-' + Date.now().toString();
+          setTranscripts(prev => [
+            ...prev,
+            {
+              id: idToUse,
+              original: textToSend,
+              translated: '',
+              isFinal: false,
+              isTranslating: false,
+              sourceLang: 'Auto',
+              targetLang: targetLangRef.current
+            }
+          ]);
+        }
+        
+        translateText(idToUse, textToSend, targetLangRef.current);
+        sessionCommittedLengthRef.current = sessionText.length;
+        currentTranscriptIdRef.current = '';
       }
     };
     flushBufferRef.current = flushBuffer;
@@ -248,9 +266,9 @@ Core_Rules:
       // 2. 針對尚未確定的片段 (interim)，給予極短的延遲後送出
       const remainingUncommitted = sessionText.substring(sessionCommittedLengthRef.current);
       if (remainingUncommitted.trim()) {
-        // 只有當文字真正改變時，才重置計時器。
+        // 只有當文字真正改變時，或計時器未啟動時，才重置/啟動計時器。
         // 避免瀏覽器狂發相同的 interim 結果導致計時器不斷被重置，進而造成最後一句話延遲。
-        if (textChanged) {
+        if (textChanged || !debounceTimerRef.current) {
           if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
           }

@@ -1,5 +1,5 @@
 {
-  "name": "Real-time Voice Translator",
+  "name": "Real-time Translator",
   "description": "即時多國語音翻譯應用程式，支援語音轉文字與即時雙語顯示。",
   "requestFramePermissions": ["microphone"]
 }

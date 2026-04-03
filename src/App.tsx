@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, Square as StopIcon, Moon, Sun, Trash2, Share2, Check } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { cn } from './lib/utils';
 
@@ -138,12 +138,24 @@ export default function App() {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
-  const [showSettings, setShowSettings] = useState(false);
   const [playingTTSId, setPlayingTTSId] = useState<string | null>(null);
   const [loadingTTSId, setLoadingTTSId] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
+  
+  // 管理者設定相關狀態
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showAdminSettings, setShowAdminSettings] = useState(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [adminLoginError, setAdminLoginError] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  
+  const [silenceThreshold, setSilenceThreshold] = useState(() => Number(localStorage.getItem('silence_threshold')) || 650);
+  const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
+  const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
+
+  const adminPassword = '7171165';
   
   const recognitionRef = useRef<any>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -183,6 +195,18 @@ export default function App() {
     localStorage.setItem('gemini_api_key', userApiKey);
   }, [userApiKey]);
 
+  useEffect(() => {
+    localStorage.setItem('silence_threshold', silenceThreshold.toString());
+  }, [silenceThreshold]);
+
+  useEffect(() => {
+    localStorage.setItem('header_title_1', headerTitle1);
+  }, [headerTitle1]);
+
+  useEffect(() => {
+    localStorage.setItem('header_title_2', headerTitle2);
+  }, [headerTitle2]);
+
   // 暗色模式切換
   useEffect(() => {
     const root = window.document.documentElement;
@@ -206,17 +230,33 @@ export default function App() {
     if (transcripts.length === 0) return;
     
     const text = transcripts.map(t => {
-      const sourceName = LANGUAGES.find(l => l.id === t.sourceLang)?.name || t.sourceLang;
-      const targetName = LANGUAGES.find(l => l.id === t.targetLang)?.name || t.targetLang;
-      return `[${sourceName}]\n${t.original}\n\n[${targetName}]\n${t.translated}`;
+      return `原文：${t.original}\n翻譯：${t.translated}`;
     }).join('\n\n---\n\n');
     
+    const shareData = {
+      title: '語音翻譯對話紀錄',
+      text: text,
+    };
+
     try {
-      await navigator.clipboard.writeText(text);
-      setShareSuccess(true);
-      setTimeout(() => setShareSuccess(false), 2000);
+      if (navigator.share) {
+        await navigator.share(shareData);
+        setShareSuccess(true);
+        setTimeout(() => setShareSuccess(false), 2000);
+      } else {
+        throw new Error('Web Share API not supported');
+      }
     } catch (err) {
-      console.error('Failed to copy', err);
+      if (err instanceof Error && err.name !== 'AbortError') {
+        // Fallback to clipboard
+        try {
+          await navigator.clipboard.writeText(text);
+          setShareSuccess(true);
+          setTimeout(() => setShareSuccess(false), 2000);
+        } catch (copyErr) {
+          console.error('Failed to copy', copyErr);
+        }
+      }
     }
   };
 
@@ -558,7 +598,7 @@ export default function App() {
           }
           debounceTimerRef.current = setTimeout(() => {
             flushBuffer();
-          }, 650); // 調整至 650ms，讓使用者有更充裕的停頓時間
+          }, silenceThreshold); 
         }
       } else {
         if (debounceTimerRef.current) {
@@ -627,8 +667,8 @@ export default function App() {
       }
     } else {
       if (!userApiKey) {
-        setErrorMsg('請先在上方設定您的 Gemini API 金鑰。');
-        setShowSettings(true);
+        setErrorMsg('請先在管理者設定中配置您的 Gemini API 金鑰。');
+        setShowAdminLogin(true);
         return;
       }
 
@@ -659,15 +699,15 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col overflow-hidden transition-colors duration-300">
+    <div className={cn("h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col overflow-hidden transition-colors duration-300", isDarkMode && "dark")}>
       {/* Header */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 shadow-sm z-10 flex-shrink-0 transition-colors duration-300">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center min-w-[40px]">
-              <span className="text-red-600 dark:text-red-500 font-bold text-2xl tracking-wider">TUC</span>
+              <span className="text-red-600 dark:text-red-500 font-bold text-2xl tracking-wider">{headerTitle1}</span>
             </div>
-            <h1 className="text-xl font-semibold tracking-tight">AI Smart Interpreter</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{headerTitle2}</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
             <button 
@@ -678,11 +718,11 @@ export default function App() {
               {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-slate-600" />}
             </button>
             <button 
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => setShowAdminLogin(true)}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-              title="設定 API 金鑰"
+              title="管理者設定"
             >
-              <Settings className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              <Lock className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             </button>
             <span className="hidden sm:flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-500"></span>
@@ -695,32 +735,211 @@ export default function App() {
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 overflow-hidden relative">
         
         {/* API Key 設定區塊 */}
-        {showSettings && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex-shrink-0 animate-in fade-in slide-in-from-top-4 transition-colors duration-300">
-            <div className="flex items-center gap-2 mb-3">
-              <Key className="w-5 h-5 text-blue-600 dark:text-blue-500" />
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">API 金鑰設定</h2>
-            </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-              請輸入您的 Gemini API 金鑰。此金鑰僅會儲存在您的瀏覽器本地端，不會上傳至任何伺服器。
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={userApiKey}
-                onChange={(e) => setUserApiKey(e.target.value)}
-                placeholder="AIzaSy..."
-                className="flex-1 px-4 py-2 bg-transparent border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white"
-              />
-              <button
-                onClick={() => setShowSettings(false)}
-                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-medium transition-colors"
-              >
-                完成
-              </button>
+        {/* 管理者登入彈窗 */}
+      {showAdminLogin && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-blue-500" /> 管理者登入
+                </h3>
+                <button 
+                  onClick={() => {
+                    setShowAdminLogin(false);
+                    setAdminPasswordInput('');
+                    setAdminLoginError(false);
+                  }}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                    請輸入管理員密碼
+                  </label>
+                  <input
+                    type="password"
+                    value={adminPasswordInput}
+                    onChange={(e) => {
+                      setAdminPasswordInput(e.target.value);
+                      setAdminLoginError(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (adminPasswordInput === adminPassword) {
+                          setShowAdminLogin(false);
+                          setShowAdminSettings(true);
+                          setAdminPasswordInput('');
+                        } else {
+                          setAdminLoginError(true);
+                        }
+                      }
+                    }}
+                    className={cn(
+                      "w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all",
+                      adminLoginError ? "border-red-500 ring-1 ring-red-500" : "border-slate-200 dark:border-slate-700"
+                    )}
+                    placeholder="••••••••"
+                    autoFocus
+                  />
+                  {adminLoginError && (
+                    <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> 密碼錯誤，請重新輸入。
+                    </p>
+                  )}
+                </div>
+                
+                <button
+                  onClick={() => {
+                    if (adminPasswordInput === adminPassword) {
+                      setShowAdminLogin(false);
+                      setShowAdminSettings(true);
+                      setAdminPasswordInput('');
+                    } else {
+                      setAdminLoginError(true);
+                    }
+                  }}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-blue-500/20"
+                >
+                  登入
+                </button>
+              </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* 管理者設定彈窗 */}
+      {showAdminSettings && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-blue-500" /> 管理者進階設定
+                </h3>
+                <button 
+                  onClick={() => setShowAdminSettings(false)}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+                {/* 語音停頓判定時間 */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <StopIcon className="w-4 h-4 text-amber-500" /> 語音停頓判定時間 (毫秒)
+                  </h4>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min="300"
+                      max="2000"
+                      step="50"
+                      value={silenceThreshold}
+                      onChange={(e) => setSilenceThreshold(Number(e.target.value))}
+                      className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="w-20 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-center font-mono font-bold text-blue-600 dark:text-blue-400">
+                      {silenceThreshold}
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    當使用者停止說話超過此時間，系統將自動斷句並進行翻譯。預設為 650ms。
+                  </p>
+                </div>
+
+                <hr className="border-slate-100 dark:border-slate-800" />
+
+                {/* API 金鑰設定 */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Key className="w-4 h-4 text-blue-500" /> API 金鑰設定
+                  </h4>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      value={userApiKey}
+                      onChange={(e) => setUserApiKey(e.target.value)}
+                      className="w-full pl-4 pr-24 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono text-sm"
+                      placeholder="輸入您的 Gemini API Key"
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      <button
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors text-slate-500"
+                        title={showApiKey ? "隱藏" : "顯示"}
+                      >
+                        {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={() => setUserApiKey('')}
+                        className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors text-red-500"
+                        title="清除"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    設定 Gemini API 金鑰以啟用翻譯功能。
+                  </p>
+                </div>
+
+                <hr className="border-slate-100 dark:border-slate-800" />
+
+                {/* 頂部標題設定 */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Languages className="w-4 h-4 text-purple-500" /> 頂部標題設定
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">標題 1 (預設: TUC)</label>
+                      <input
+                        type="text"
+                        value={headerTitle1}
+                        onChange={(e) => setHeaderTitle1(e.target.value)}
+                        className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">標題 2 (預設: AI Smart Interpreter)</label>
+                      <input
+                        type="text"
+                        value={headerTitle2}
+                        onChange={(e) => setHeaderTitle2(e.target.value)}
+                        className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-8">
+                <button
+                  onClick={() => {
+                    setShowAdminSettings(false);
+                    // 立即生效：如果正在錄音，重新初始化
+                    if (isRecording) {
+                      initSpeechRecognition();
+                    }
+                  }}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98]"
+                >
+                  儲存並關閉
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
         {/* 控制面板：互譯功能選擇與錄音按鈕 */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex flex-row items-center justify-between flex-shrink-0 gap-2 sm:gap-4 transition-colors duration-300">
@@ -782,7 +1001,7 @@ export default function App() {
                 {isRecording ? (
                   <><Square className="w-4 h-4 fill-current" /> 停止錄音</>
                 ) : (
-                  <><Mic className="w-4 h-4" /> Speaking...</>
+                  <><Mic className="w-4 h-4" /> Speaking</>
                 )}
               </button>
             </div>
@@ -821,7 +1040,7 @@ export default function App() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {shareSuccess ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Share2 className="w-3.5 h-3.5" />}
-                {shareSuccess ? '已複製' : '分享'}
+                {shareSuccess ? '分享成功' : '分享'}
               </button>
               <button
                 onClick={() => setShowClearConfirm(true)}

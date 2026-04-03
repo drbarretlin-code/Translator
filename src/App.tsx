@@ -166,6 +166,7 @@ Core_Rules:
     const flushBuffer = () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
       const sessionText = currentSessionTextRef.current;
       if (sessionCommittedLengthRef.current > sessionText.length) {
@@ -199,6 +200,8 @@ Core_Rules:
       }
 
       const sessionText = sessionFinals + sessionInterims;
+      // 判斷文字是否真的有改變
+      const textChanged = sessionText !== currentSessionTextRef.current;
       currentSessionTextRef.current = sessionText;
       
       // Safeguard: if interim result shrinks, ensure we don't get out of bounds
@@ -224,16 +227,12 @@ Core_Rules:
             targetLang: targetLangRef.current
           }
         ]);
-      } else {
+      } else if (textChanged) {
+        // 只有當文字改變時才更新 UI，避免不必要的重新渲染
         const idToUpdate = currentTranscriptIdRef.current;
         setTranscripts(prev => prev.map(t =>
           t.id === idToUpdate ? { ...t, original: uncommittedText } : t
         ));
-      }
-
-      // 清除之前的計時器
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
       }
 
       // 1. 立即送出已確定的完整句子 (isFinal)，無需等待延遲
@@ -249,9 +248,21 @@ Core_Rules:
       // 2. 針對尚未確定的片段 (interim)，給予極短的延遲後送出
       const remainingUncommitted = sessionText.substring(sessionCommittedLengthRef.current);
       if (remainingUncommitted.trim()) {
-        debounceTimerRef.current = setTimeout(() => {
-          flushBuffer();
-        }, 500);
+        // 只有當文字真正改變時，才重置計時器。
+        // 避免瀏覽器狂發相同的 interim 結果導致計時器不斷被重置，進而造成最後一句話延遲。
+        if (textChanged) {
+          if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+          }
+          debounceTimerRef.current = setTimeout(() => {
+            flushBuffer();
+          }, 400); // 縮短至 400ms 讓反應更即時
+        }
+      } else {
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+          debounceTimerRef.current = null;
+        }
       }
     };
 

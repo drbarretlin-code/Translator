@@ -76,11 +76,16 @@ export default function App() {
     ));
 
     try {
-      // 支援 process.env (透過 vite.config.ts define) 或 import.meta.env
-      const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+      // 安全地讀取環境變數，避免在 Vercel 上因為 process 未定義而崩潰
+      let apiKey = '';
+      if (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) {
+        apiKey = process.env.GEMINI_API_KEY;
+      } else {
+        apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
+      }
       
       if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey === "undefined") {
-        throw new Error("未偵測到 GEMINI_API_KEY。本地端請檢查環境變數設定；若部署於 Vercel，請至 Environment Variables 設定並重新部署。");
+        throw new Error("未偵測到 GEMINI_API_KEY。本地端請檢查環境變數設定；若部署於 Vercel，請至 Environment Variables 設定 VITE_GEMINI_API_KEY 並重新部署。");
       }
       
       const ai = new GoogleGenAI({ apiKey });

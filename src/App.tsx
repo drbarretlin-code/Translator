@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
 import { Mic, Square, Globe2, AlertCircle, Loader2, Volume2, Languages, ArrowRightLeft } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -34,7 +33,6 @@ export default function App() {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
-  const socketRef = useRef<Socket | null>(null);
   const recognitionRef = useRef<any>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   
@@ -62,48 +60,13 @@ export default function App() {
     targetLangRef.current = targetLang;
   }, [targetLang]);
 
-  // 初始化 Socket.io 連線
-  useEffect(() => {
-    socketRef.current = io();
-
-    socketRef.current.on('translate_stream', (data: { id: string, translated: string }) => {
-      setTranscripts(prev => prev.map(t => 
-        t.id === data.id 
-          ? { ...t, translated: data.translated, isTranslating: true } 
-          : t
-      ));
-    });
-
-    socketRef.current.on('translate_response', (data: { id: string, original: string, translated: string }) => {
-      setTranscripts(prev => prev.map(t => 
-        t.id === data.id 
-          ? { ...t, translated: data.translated, isTranslating: false } 
-          : t
-      ));
-    });
-
-    socketRef.current.on('translate_error', (data: { id: string, error: string }) => {
-      setTranscripts(prev => prev.map(t => 
-        t.id === data.id 
-          ? { ...t, error: data.error, isTranslating: false } 
-          : t
-      ));
-    });
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
-  }, []);
-
   // 自動滾動到最新對話
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcripts]);
 
-  // 發送翻譯請求
-  const handleTranslationRequest = (id: string, text: string, tgtLang: string) => {
+  // 發送翻譯請求 (使用 Fetch 與 SSE)
+  const handleTranslationRequest = async (id: string, text: string, tgtLang: string) => {
     if (!text.trim()) return;
     
     const tgtLangName = LANGUAGES.find(l => l.id === tgtLang)?.name || tgtLang;
@@ -118,13 +81,70 @@ export default function App() {
       t.id === id ? { ...t, isTranslating: true, isFinal: true, targetLang: tgtLangName } : t
     ));
 
-    if (socketRef.current) {
-      socketRef.current.emit('translate_request', {
-        id,
-        text,
-        targetLang: tgtLangName,
-        history
+    try {
+      const response = await fetch('/api/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id,
+          text,
+          targetLang: tgtLangName,
+          history
+        })
       });
+
+      if (!response.body) throw new Error('No response body');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'stream') {
+                setTranscripts(prev => prev.map(t => 
+                  t.id === data.id 
+                    ? { ...t, translated: data.translated, isTranslating: true } 
+                    : t
+                ));
+              } else if (data.type === 'response') {
+                setTranscripts(prev => prev.map(t => 
+                  t.id === data.id 
+                    ? { ...t, translated: data.translated, isTranslating: false } 
+                    : t
+                ));
+              } else if (data.type === 'error') {
+                setTranscripts(prev => prev.map(t => 
+                  t.id === data.id 
+                    ? { ...t, error: data.error, isTranslating: false } 
+                    : t
+                ));
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE data', e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Translation request failed:', error);
+      setTranscripts(prev => prev.map(t => 
+        t.id === id 
+          ? { ...t, error: '連線失敗，請檢查網路狀態或伺服器設定', isTranslating: false } 
+          : t
+      ));
     }
   };
 

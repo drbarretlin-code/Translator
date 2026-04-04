@@ -795,10 +795,10 @@ export default function App() {
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 shadow-sm z-10 flex-shrink-0 transition-colors duration-300">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center min-w-[40px]">
-              <span className="text-red-600 dark:text-red-500 font-bold text-2xl tracking-wider">{getUiText('title1')}</span>
+            <div className="flex items-center justify-center min-w-[30px]">
+              <span className="text-red-600 dark:text-red-500 font-bold text-xl tracking-wider">{getUiText('title1')}</span>
             </div>
-            <h1 className="text-xl font-semibold tracking-tight">{getUiText('title2')}</h1>
+            <h1 className="text-base font-semibold tracking-tight">{getUiText('title2')}</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
             <button 
@@ -1193,19 +1193,19 @@ export default function App() {
                 <p className="text-sm">點擊上方按鈕開始對話</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start content-start">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-start content-start">
                 {transcripts.map((t) => {
                   return (
                     <div 
                       key={t.id} 
                       className={cn(
-                        "flex flex-col gap-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 transition-all duration-300 shadow-sm",
+                        "flex flex-col gap-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-2 transition-all duration-300 shadow-sm",
                         !t.isFinal && "opacity-60"
                       )}
                     >
                       {/* 原文 (Local/Client 之一) */}
                       <div className="flex flex-col gap-1.5">
-                        <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
+                        <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
                           {t.original}
                         </div>
                       </div>
@@ -1223,7 +1223,7 @@ export default function App() {
                             </div>
                           ) : (
                             <div className="flex items-start justify-between gap-2">
-                              <div className="text-[15px] leading-relaxed text-blue-700 dark:text-blue-400 font-medium">
+                              <div className="text-[15px] leading-tight text-blue-700 dark:text-blue-400 font-medium">
                                 {t.translated}
                                 {t.isTranslating && (
                                   t.translated ? (

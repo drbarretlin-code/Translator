@@ -1075,23 +1075,22 @@ export default function App() {
       )}
 
         {/* 控制面板：互譯功能選擇與錄音按鈕 */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex flex-row items-center justify-between flex-shrink-0 gap-2 sm:gap-4 transition-colors duration-300">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 sm:p-3 flex flex-row items-center justify-between flex-shrink-0 gap-2 transition-colors duration-300">
           
           {/* 左側國旗 (Local) */}
           <div className="flex items-center justify-center flex-shrink-0">
-            <CountryFlag langId={localLang} className="w-12 h-8 sm:w-16 sm:h-11 rounded-md shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
+            <CountryFlag langId={localLang} className="w-8 h-5 sm:w-10 sm:h-7 rounded shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full max-w-2xl mx-auto">
-            <div className="w-full sm:w-1/3">
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">{getUiText('local')}</label>
+          <div className="flex flex-row items-center gap-2 w-full max-w-2xl mx-auto">
+            <div className="flex-1">
               <div className="relative">
-                <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                 <select 
                   value={localLang}
                   onChange={(e) => setLocalLang(e.target.value)}
                   disabled={isRecording}
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed appearance-none dark:text-slate-200"
+                  className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
                 >
                   {LANGUAGES.map(lang => (
                     <option key={`local-${lang.id}`} value={lang.id}>{lang.name}</option>
@@ -1100,19 +1099,18 @@ export default function App() {
               </div>
             </div>
 
-            <div className="hidden sm:flex items-center justify-center mt-5">
-              <ArrowRightLeft className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+            <div className="flex items-center justify-center">
+              <ArrowRightLeft className="w-4 h-4 text-slate-400 dark:text-slate-500" />
             </div>
 
-            <div className="w-full sm:w-1/3">
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ml-1">{getUiText('client')}</label>
+            <div className="flex-1">
               <div className="relative">
-                <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                 <select 
                   value={clientLang}
                   onChange={(e) => setClientLang(e.target.value)}
                   disabled={isRecording}
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed appearance-none dark:text-slate-200"
+                  className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
                 >
                   {LANGUAGES.map(lang => (
                     <option key={`client-${lang.id}`} value={lang.id}>{lang.name}</option>
@@ -1120,23 +1118,21 @@ export default function App() {
                 </select>
               </div>
             </div>
-
-            {/* 自動朗讀開關移除 */}
             
-            <div className="w-full sm:w-1/3 flex items-end h-full">
+            <div className="flex-shrink-0">
               <button
                 onClick={toggleRecording}
                 className={cn(
-                  "flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all duration-300 shadow-sm w-full h-[42px]",
+                  "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all duration-300 shadow-sm h-[32px]",
                   isRecording
-                    ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 border border-red-200 dark:border-red-500/30 animate-pulse" 
-                    : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md border border-transparent"
+                    ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 animate-pulse" 
+                    : "bg-blue-600 text-white hover:bg-blue-700 border border-transparent"
                 )}
               >
                 {isRecording ? (
-                  <><Square className="w-4 h-4 fill-current" /> 停止錄音</>
+                  <><Square className="w-3.5 h-3.5 fill-current" /> <span className="text-xs">停止</span></>
                 ) : (
-                  <><Mic className="w-4 h-4" /> Speaking</>
+                  <><Mic className="w-3.5 h-3.5" /> <span className="text-xs">Speaking</span></>
                 )}
               </button>
             </div>
@@ -1144,7 +1140,7 @@ export default function App() {
 
           {/* 右側國旗 (Client) */}
           <div className="flex items-center justify-center flex-shrink-0">
-            <CountryFlag langId={clientLang} className="w-12 h-8 sm:w-16 sm:h-11 rounded-md shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
+            <CountryFlag langId={clientLang} className="w-8 h-5 sm:w-10 sm:h-7 rounded shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
           </div>
         </div>
 

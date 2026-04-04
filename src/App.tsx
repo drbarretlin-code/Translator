@@ -25,6 +25,7 @@ interface Transcript {
   isTranslating: boolean;
   sourceLang: string;
   targetLang: string;
+  detectedLang?: string;
   error?: string;
 }
 
@@ -501,12 +502,8 @@ export default function App() {
 
   // 執行翻譯 (直接在前端呼叫 Gemini API)
   const translateText = async (id: string, text: string) => {
-    const localLangName = LANGUAGES.find(l => l.id === localLangRef.current)?.name || localLangRef.current;
-    const clientLangName = LANGUAGES.find(l => l.id === clientLangRef.current)?.name || clientLangRef.current;
-    
-    // 確保將狀態設為 isFinal: true，否則 UI 會一直卡在「等待語音結束...」隱藏錯誤訊息
     setTranscripts(prev => prev.map(t => 
-      t.id === id ? { ...t, isTranslating: true, isFinal: true, targetLang: `${localLangName} ↔ ${clientLangName}` } : t
+      t.id === id ? { ...t, isTranslating: true, isFinal: true } : t
     ));
 
     try {
@@ -516,31 +513,47 @@ export default function App() {
       
       const ai = new GoogleGenAI({ apiKey: userApiKey });
 
-      // 極度精簡的 System Prompt，捨棄歷史上下文，追求極致的 TTFT (Time To First Token)
-      const systemInstruction = `Translate the input. If it is ${localLangName}, translate to ${clientLangName}. If it is ${clientLangName}, translate to ${localLangName}. Output ONLY the translation.`;
-
       const responseStream = await ai.models.generateContentStream({
-        model: "gemini-3.1-flash-lite-preview", // 使用最輕量、最快速的模型
-        contents: text,
+        model: "gemini-3.1-flash-lite-preview",
+        contents: `Translate to ${clientLangRef.current}. Return format: [DetectedLangCode] | [TranslatedText]. Text: ${text}`,
         config: {
-          systemInstruction,
-          temperature: 0.1, // 降低隨機性，加快生成速度
+          temperature: 0.1,
         }
       });
 
-      let fullTranslation = "";
+      let fullResponse = "";
+      let detectedLang = "";
+      let translatedText = "";
+      let isParsing = true;
+
       for await (const chunk of responseStream) {
-        fullTranslation += chunk.text || "";
-        setTranscripts(prev => prev.map(t => 
-          t.id === id ? { ...t, translated: fullTranslation } : t
-        ));
+        fullResponse += chunk.text || "";
+        
+        if (isParsing) {
+          const parts = fullResponse.split('|');
+          if (parts.length >= 2) {
+            detectedLang = parts[0].trim();
+            translatedText = parts.slice(1).join('|').trim();
+            isParsing = false;
+            
+            // Update detected language in UI
+            setTranscripts(prev => prev.map(t => 
+              t.id === id ? { ...t, detectedLang, translated: translatedText } : t
+            ));
+
+            // Update localLang if detected language is different
+            if (detectedLang && detectedLang !== localLangRef.current && LANGUAGES.some(l => l.id === detectedLang)) {
+              setLocalLang(detectedLang);
+            }
+          }
+        } else {
+          translatedText += chunk.text || "";
+          setTranscripts(prev => prev.map(t => 
+            t.id === id ? { ...t, translated: translatedText } : t
+          ));
+        }
       }
 
-      // 判斷翻譯結果的目標語言代碼，以便朗讀
-      // 這裡我們簡單假設：如果輸入是 localLang，翻譯結果就是 clientLang，反之亦然。
-      // 為了精確，我們可以在這裡讓 AI 回傳 JSON，但為了速度，我們直接用一個簡單的 heuristic 或讓使用者手動點擊。
-      // 我們將在 UI 中傳入 clientLang 或 localLang。
-      
       setTranscripts(prev => prev.map(t => 
         t.id === id ? { ...t, isTranslating: false } : t
       ));
@@ -1206,6 +1219,7 @@ export default function App() {
                       {/* 原文 (Local/Client 之一) */}
                       <div className="flex flex-col gap-1.5">
                         <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
+                          {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
                           {t.original}
                         </div>
                       </div>

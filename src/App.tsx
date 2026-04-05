@@ -505,9 +505,12 @@ export default function App() {
             }
           },
           onmessage: (message: any) => {
+            let textContent = "";
+            let userTextContent = "";
+
+            // 1. 處理模型回傳的音訊與文字 (modelTurn)
             const parts = message.serverContent?.modelTurn?.parts;
             if (parts) {
-              let textContent = "";
               for (const part of parts) {
                 if (part.text && isTextOutputEnabledRef.current) {
                   textContent += part.text;
@@ -516,27 +519,50 @@ export default function App() {
                   playAudioChunk(part.inlineData.data);
                 }
               }
-              if (textContent && isTextOutputEnabledRef.current) {
-                setTranscripts(prev => {
-                  const last = prev[prev.length - 1];
-                  if (last && !last.isFinal) {
-                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: t.translated + textContent } : t);
-                  } else {
-                    return [...prev, {
-                      id: Date.now().toString(),
-                      original: "語音輸入 (Voice Input)",
-                      translated: textContent,
-                      isFinal: false,
-                      isTranslating: false,
-                      sourceLang: "Auto",
-                      targetLang: "Auto"
-                    }];
-                  }
-                });
-              }
             }
 
-            if (message.serverContent?.turnComplete && isTextOutputEnabledRef.current) {
+            // 2. 處理模型的語音轉文字 (outputTranscription)
+            const outTranscript = message.serverContent?.outputTranscription;
+            if (outTranscript?.text && isTextOutputEnabledRef.current) {
+              textContent += outTranscript.text;
+            }
+
+            // 3. 處理使用者的語音轉文字 (inputTranscription)
+            const inTranscript = message.serverContent?.inputTranscription;
+            if (inTranscript?.text) {
+              userTextContent += inTranscript.text;
+            }
+
+            // 更新 UI
+            if (textContent || userTextContent) {
+              setTranscripts(prev => {
+                const last = prev[prev.length - 1];
+                if (last && !last.isFinal) {
+                  return prev.map((t, i) => {
+                    if (i === prev.length - 1) {
+                      return { 
+                        ...t, 
+                        translated: t.translated + textContent,
+                        original: userTextContent ? (t.original === "語音輸入 (Voice Input)" ? userTextContent : t.original + userTextContent) : t.original
+                      };
+                    }
+                    return t;
+                  });
+                } else {
+                  return [...prev, {
+                    id: Date.now().toString(),
+                    original: userTextContent || "語音輸入 (Voice Input)",
+                    translated: textContent,
+                    isFinal: false,
+                    isTranslating: false,
+                    sourceLang: "Auto",
+                    targetLang: "Auto"
+                  }];
+                }
+              });
+            }
+
+            if (message.serverContent?.turnComplete) {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 if (last && !last.isFinal) {
@@ -565,6 +591,8 @@ export default function App() {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } }
           },
           systemInstruction: systemInstruction,
+          outputAudioTranscription: {},
+          inputAudioTranscription: {},
         }
       });
     } catch (err: any) {
@@ -1048,23 +1076,24 @@ export default function App() {
                       
                       {/* 翻譯文 (對應的另一端) */}
                       <div className="flex flex-col gap-1.5">
-                        {t.isFinal ? (
-                          t.error ? (
-                            <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-[15px]">
-                              <AlertCircle className="w-4 h-4" />
-                              <span>{t.error}</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-start justify-between gap-2">
+                        {t.error ? (
+                          <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-[15px]">
+                            <AlertCircle className="w-4 h-4" />
+                            <span>{t.error}</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {t.translated && (
                               <div className="text-[15px] leading-tight text-blue-700 dark:text-blue-400 font-medium">
                                 {t.translated}
                               </div>
-                            </div>
-                          )
-                        ) : (
-                          <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-sm">
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>AI 聆聽與翻譯中...</span>
+                            )}
+                            {!t.isFinal && (
+                              <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-sm">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>AI 聆聽與翻譯中...</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

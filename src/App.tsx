@@ -641,7 +641,8 @@ export default function App() {
 4. If the target language is Chinese, ALWAYS use Traditional Chinese (繁體中文).
 5. Speak the translation out loud.
 6. Do not add any conversational filler, greetings, or explanations. ONLY output the translation.
-7. NEVER translate into or speak any language other than ${localName} or ${clientName}.`;
+7. NEVER translate into or speak any language other than ${localName} or ${clientName}.
+8. STRICTLY output ONLY in ${localName} or ${clientName}. If the target is Traditional Chinese, it MUST be Traditional Chinese (繁體中文), NOT Simplified Chinese, Japanese, or any other language.`;
 
       sessionPromiseRef.current = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
@@ -655,9 +656,10 @@ export default function App() {
 
               const source = audioCtx.createMediaStreamSource(stream);
               
-              // 建立增益節點 (GainNode) 來放大音量，強化不戴耳機時的收音效果
+              // 建立增益節點 (GainNode) 來放大音量，強化收音效果
               const gainNode = audioCtx.createGain();
-              gainNode.gain.value = 2.5; // 放大 2.5 倍音量
+              // 增加增益以強化對手機播放音訊的接收能力
+              gainNode.gain.value = 3.5; 
               
               const processor = audioCtx.createScriptProcessor(4096, 1, 1);
               processorRef.current = processor;

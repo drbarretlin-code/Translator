@@ -708,12 +708,31 @@ export default function App() {
             }
           },
           onmessage: (message: any) => {
-            let textContent = "";
-            let userTextContent = "";
+            // 1. 處理使用者的語音轉文字 (inputTranscription)
+            const inTranscript = message.serverContent?.inputTranscription;
+            if (inTranscript?.text) {
+              setTranscripts(prev => {
+                const last = prev[prev.length - 1];
+                if (last && !last.isFinal) {
+                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: inTranscript.text } : t);
+                } else {
+                  return [...prev, {
+                    id: Date.now().toString(),
+                    original: inTranscript.text,
+                    translated: "",
+                    isFinal: false,
+                    isTranslating: true,
+                    sourceLang: "Auto",
+                    targetLang: "Auto"
+                  }];
+                }
+              });
+            }
 
-            // 1. 處理模型回傳的音訊與文字 (modelTurn)
+            // 2. 處理模型回傳的音訊與文字 (modelTurn)
             const parts = message.serverContent?.modelTurn?.parts;
             if (parts) {
+              let textContent = "";
               for (const part of parts) {
                 if (part.text && isTextOutputEnabledRef.current) {
                   textContent += part.text;
@@ -722,46 +741,27 @@ export default function App() {
                   playAudioChunk(part.inlineData.data);
                 }
               }
+
+              if (textContent) {
+                setTranscripts(prev => {
+                  const last = prev[prev.length - 1];
+                  if (last) {
+                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: t.translated + textContent, isTranslating: false } : t);
+                  }
+                  return prev;
+                });
+              }
             }
 
-            // 2. 處理模型的語音轉文字 (outputTranscription)
+            // 3. 處理模型的語音轉文字 (outputTranscription - 作為備用)
             const outTranscript = message.serverContent?.outputTranscription;
             if (outTranscript?.text && isTextOutputEnabledRef.current) {
-              textContent += outTranscript.text;
-            }
-
-            // 3. 處理使用者的語音轉文字 (inputTranscription)
-            const inTranscript = message.serverContent?.inputTranscription;
-            if (inTranscript?.text) {
-              userTextContent += inTranscript.text;
-            }
-
-            // 更新 UI
-            if (textContent || userTextContent) {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
-                if (last && !last.isFinal) {
-                  return prev.map((t, i) => {
-                    if (i === prev.length - 1) {
-                      return { 
-                        ...t, 
-                        translated: t.translated + textContent,
-                        original: userTextContent ? (t.original === "語音輸入 (Voice Input)" ? userTextContent : t.original + userTextContent) : t.original
-                      };
-                    }
-                    return t;
-                  });
-                } else {
-                  return [...prev, {
-                    id: Date.now().toString(),
-                    original: userTextContent || "語音輸入 (Voice Input)",
-                    translated: textContent,
-                    isFinal: false,
-                    isTranslating: false,
-                    sourceLang: "Auto",
-                    targetLang: "Auto"
-                  }];
+                if (last) {
+                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: outTranscript.text, isTranslating: false } : t);
                 }
+                return prev;
               });
             }
 
@@ -769,7 +769,7 @@ export default function App() {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 if (last && !last.isFinal) {
-                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, isFinal: true } : t);
+                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, isFinal: true, isTranslating: false } : t);
                 }
                 return prev;
               });

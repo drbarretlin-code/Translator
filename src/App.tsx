@@ -147,7 +147,6 @@ export default function App() {
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   
-  const [silenceThreshold, setSilenceThreshold] = useState(() => Number(localStorage.getItem('silence_threshold')) || 650);
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
   
@@ -198,10 +197,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('gemini_api_key', userApiKey);
   }, [userApiKey]);
-
-  useEffect(() => {
-    localStorage.setItem('silence_threshold', silenceThreshold.toString());
-  }, [silenceThreshold]);
 
   useEffect(() => {
     localStorage.setItem('header_title_1', headerTitle1);
@@ -455,6 +450,7 @@ export default function App() {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          channelCount: 1, // 強制單聲道，讓麥克風陣列更專注於人聲
         } 
       });
       mediaStreamRef.current = stream;
@@ -482,8 +478,18 @@ export default function App() {
               const stream = mediaStreamRef.current;
 
               const source = audioCtx.createMediaStreamSource(stream);
+              
+              // 建立增益節點 (GainNode) 來放大音量，強化不戴耳機時的收音效果
+              const gainNode = audioCtx.createGain();
+              gainNode.gain.value = 2.5; // 放大 2.5 倍音量
+              
               const processor = audioCtx.createScriptProcessor(4096, 1, 1);
               processorRef.current = processor;
+
+              // 連接：麥克風 -> 增益節點 -> 處理節點 -> 輸出 (虛擬)
+              source.connect(gainNode);
+              gainNode.connect(processor);
+              processor.connect(audioCtx.destination);
 
               processor.onaudioprocess = (e) => {
                 if (!isLiveRef.current) return;
@@ -523,9 +529,6 @@ export default function App() {
                   });
                 });
               };
-
-              source.connect(processor);
-              processor.connect(audioCtx.destination);
             } catch (err) {
               console.error("Audio processing error:", err);
               setErrorMsg("音訊處理發生錯誤");
@@ -796,32 +799,6 @@ export default function App() {
               </div>
               
               <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-                {/* 語音停頓判定時間 */}
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <StopIcon className="w-4 h-4 text-amber-500" /> 語音停頓判定時間 (毫秒)
-                  </h4>
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="range"
-                      min="300"
-                      max="2000"
-                      step="50"
-                      value={silenceThreshold}
-                      onChange={(e) => setSilenceThreshold(Number(e.target.value))}
-                      className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                    />
-                    <div className="w-20 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-center font-mono font-bold text-blue-600 dark:text-blue-400">
-                      {silenceThreshold}
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    當使用者停止說話超過此時間，系統將自動斷句並進行翻譯。預設為 650ms。
-                  </p>
-                </div>
-
-                <hr className="border-slate-100 dark:border-slate-800" />
-
                 {/* API 金鑰設定 */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">

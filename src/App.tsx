@@ -724,12 +724,13 @@ Rules:
           },
           onmessage: (message: any) => {
             // 1. 處理使用者的語音轉文字 (inputTranscription)
+            // 僅處理使用者輸入，避免將 AI 的輸出誤判為輸入
             const inTranscript = message.serverContent?.inputTranscription;
-            if (inTranscript?.text) {
+            if (inTranscript?.text && message.serverContent?.inputTranscription?.text) {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 // 確保完整更新 original 欄位，不進行截斷
-                if (last && !last.isFinal) {
+                if (last && !last.isFinal && last.isTranslating) {
                   return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: inTranscript.text } : t);
                 } else {
                   return [...prev, {

@@ -513,9 +513,17 @@ export default function App() {
       
       const ai = new GoogleGenAI({ apiKey: userApiKey });
 
+      const prompt = `You are a bilingual translator. The two languages are ${localLangRef.current} and ${clientLangRef.current}.
+Detect the language of the text.
+If it is ${localLangRef.current}, translate to ${clientLangRef.current}.
+If it is ${clientLangRef.current}, translate to ${localLangRef.current}.
+If it's another language, translate to ${localLangRef.current}.
+Return EXACTLY in this format: [DetectedLangCode] | [TranslatedText]
+Text: ${text}`;
+
       const responseStream = await ai.models.generateContentStream({
         model: "gemini-3.1-flash-lite-preview",
-        contents: `Translate to ${clientLangRef.current}. Return format: [DetectedLangCode] | [TranslatedText]. Text: ${text}`,
+        contents: prompt,
         config: {
           temperature: 0.1,
         }
@@ -540,11 +548,6 @@ export default function App() {
             setTranscripts(prev => prev.map(t => 
               t.id === id ? { ...t, detectedLang, translated: translatedText } : t
             ));
-
-            // Update localLang if detected language is different
-            if (detectedLang && detectedLang !== localLangRef.current && LANGUAGES.some(l => l.id === detectedLang)) {
-              setLocalLang(detectedLang);
-            }
           }
         } else {
           translatedText += chunk.text || "";
@@ -1113,7 +1116,20 @@ export default function App() {
             </div>
 
             <div className="flex items-center justify-center">
-              <ArrowRightLeft className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+              <button 
+                onClick={() => {
+                  const temp = localLang;
+                  setLocalLang(clientLang);
+                  setClientLang(temp);
+                  if (isRecording) {
+                    setTimeout(() => initSpeechRecognition(), 100);
+                  }
+                }}
+                className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
+                title="切換語言方向"
+              >
+                <ArrowRightLeft className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+              </button>
             </div>
 
             <div className="flex-1">

@@ -5,15 +5,15 @@ import { cn } from './lib/utils';
 
 // 定義支援的語言與腔調清單
 const LANGUAGES = [
-  { id: 'en-US', name: '美語 (美國)' },
-  { id: 'en-GB', name: '英語 (英國)' },
-  { id: 'ja-JP', name: '日語 (日本)' },
-  { id: 'fr-FR', name: '法語 (Français)' },
-  { id: 'th-TH', name: '泰語 (ไทย)' },
-  { id: 'vi-VN', name: '越南語 (Tiếng Việt)' },
-  { id: 'id-ID', name: '印尼語 (Bahasa Indonesia)' },
-  { id: 'ms-MY', name: '馬來西亞語 (Bahasa Melayu)' },
-  { id: 'zh-TW', name: '繁中 (台灣)' },
+  { id: 'zh-TW', nameKey: 'lang_zh_TW', suffix: '(TW)', name: '繁體中文' },
+  { id: 'en-US', nameKey: 'lang_en_US', suffix: '(USA)', name: 'English (US)' },
+  { id: 'en-GB', nameKey: 'lang_en_GB', suffix: '(GBR)', name: 'English (GB)' },
+  { id: 'ja-JP', nameKey: 'lang_ja_JP', suffix: '(Japan)', name: '日本語' },
+  { id: 'fr-FR', nameKey: 'lang_fr_FR', suffix: '(Français)', name: 'Français' },
+  { id: 'th-TH', nameKey: 'lang_th_TH', suffix: '(ไทย)', name: 'ไทย' },
+  { id: 'vi-VN', nameKey: 'lang_vi_VN', suffix: '(Tiếng Việt)', name: 'Tiếng Việt' },
+  { id: 'id-ID', nameKey: 'lang_id_ID', suffix: '(Bahasa Indonesia)', name: 'Bahasa Indonesia' },
+  { id: 'ms-MY', nameKey: 'lang_ms_MY', suffix: '(Bahasa Melayu)', name: 'Bahasa Melayu' },
 ];
 
 // 定義對話紀錄的資料結構
@@ -226,86 +226,257 @@ export default function App() {
   const getUiText = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
       'zh-TW': {
-        'title1': headerTitle1,
-        'title2': headerTitle2,
+        'title1': 'TUC',
+        'title2': 'AI Smart Interpreter',
         'local': 'Local (本地端)',
         'client': 'Client (客戶端)',
         'systemReady': '系統就緒',
         'adminSettings': '管理者設定',
         'darkMode': isDarkMode ? '切換至亮色模式' : '切換至暗色模式',
+        'audioOutput': '語音輸出',
+        'textTranscript': '文字記錄',
+        'speaking': '說話中',
+        'stop': '停止',
+        'share': shareSuccess ? '分享成功' : '分享',
+        'clear': '清除',
+        'confirmClear': '確定清除',
+        'clearTitle': '清除對話記錄',
+        'clearDesc': '確定要清除所有的對話記錄嗎？此動作無法復原。',
+        'cancel': '取消',
+        'lang_zh_TW': '繁體中文',
+        'lang_en_US': '美式英語',
+        'lang_en_GB': '英式英語',
+        'lang_ja_JP': '日語',
+        'lang_fr_FR': '法語',
+        'lang_th_TH': '泰語',
+        'lang_vi_VN': '越南語',
+        'lang_id_ID': '印尼語',
+        'lang_ms_MY': '馬來語',
       },
       'en-US': {
-        'title1': headerTitle1,
-        'title2': headerTitle2,
+        'title1': 'TUC',
+        'title2': 'AI Smart Interpreter',
         'local': 'Local',
         'client': 'Client',
         'systemReady': 'System Ready',
         'adminSettings': 'Admin Settings',
         'darkMode': isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+        'audioOutput': 'Audio Output',
+        'textTranscript': 'Text Transcript',
+        'speaking': 'Speaking',
+        'stop': 'Stop',
+        'share': shareSuccess ? 'Shared' : 'Share',
+        'clear': 'Clear',
+        'confirmClear': 'Confirm Clear',
+        'clearTitle': 'Clear Transcript',
+        'clearDesc': 'Are you sure you want to clear all transcripts? This action cannot be undone.',
+        'cancel': 'Cancel',
+        'lang_zh_TW': 'Traditional Chinese',
+        'lang_en_US': 'American English',
+        'lang_en_GB': 'British English',
+        'lang_ja_JP': 'Japanese',
+        'lang_fr_FR': 'French',
+        'lang_th_TH': 'Thai',
+        'lang_vi_VN': 'Vietnamese',
+        'lang_id_ID': 'Indonesian',
+        'lang_ms_MY': 'Malay',
       },
       'ja-JP': {
-        'title1': headerTitle1,
-        'title2': headerTitle2,
+        'title1': 'TUC',
+        'title2': 'AI Smart Interpreter',
         'local': 'ローカル',
         'client': 'クライアント',
         'systemReady': 'システム準備完了',
         'adminSettings': '管理者設定',
         'darkMode': isDarkMode ? 'ライトモードへ' : 'ダークモードへ',
+        'audioOutput': '音声出力',
+        'textTranscript': '文字記録',
+        'speaking': '話す',
+        'stop': '停止',
+        'share': shareSuccess ? '共有完了' : '共有',
+        'clear': 'クリア',
+        'confirmClear': '確定してクリア',
+        'clearTitle': '会話履歴をクリア',
+        'clearDesc': 'すべての会話履歴をクリアしますか？この操作は取り消せません。',
+        'cancel': 'キャンセル',
+        'lang_zh_TW': '繁體中文',
+        'lang_en_US': 'アメリカ英語',
+        'lang_en_GB': 'イギリス英語',
+        'lang_ja_JP': '日本語',
+        'lang_fr_FR': 'フランス語',
+        'lang_th_TH': 'タイ語',
+        'lang_vi_VN': 'ベトナム語',
+        'lang_id_ID': 'インドネシア語',
+        'lang_ms_MY': 'マレー語',
       },
       'en-GB': {
-        'title1': headerTitle1,
-        'title2': headerTitle2,
+        'title1': 'TUC',
+        'title2': 'AI Smart Interpreter',
         'local': 'Local',
         'client': 'Client',
         'systemReady': 'System Ready',
         'adminSettings': 'Admin Settings',
         'darkMode': isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+        'audioOutput': 'Audio Output',
+        'textTranscript': 'Text Transcript',
+        'speaking': 'Speaking',
+        'stop': 'Stop',
+        'share': shareSuccess ? 'Shared' : 'Share',
+        'clear': 'Clear',
+        'confirmClear': 'Confirm Clear',
+        'clearTitle': 'Clear Transcript',
+        'clearDesc': 'Are you sure you want to clear all transcripts? This action cannot be undone.',
+        'cancel': 'Cancel',
+        'lang_zh_TW': 'Traditional Chinese',
+        'lang_en_US': 'American English',
+        'lang_en_GB': 'British English',
+        'lang_ja_JP': 'Japanese',
+        'lang_fr_FR': 'French',
+        'lang_th_TH': 'Thai',
+        'lang_vi_VN': 'Vietnamese',
+        'lang_id_ID': 'Indonesian',
+        'lang_ms_MY': 'Malay',
       },
       'fr-FR': {
-        'title1': headerTitle1,
-        'title2': headerTitle2,
+        'title1': 'TUC',
+        'title2': 'AI Smart Interpreter',
         'local': 'Local',
         'client': 'Client',
         'systemReady': 'Système prêt',
         'adminSettings': 'Paramètres admin',
         'darkMode': isDarkMode ? 'Mode clair' : 'Mode sombre',
+        'audioOutput': 'Sortie audio',
+        'textTranscript': 'Transcription',
+        'speaking': 'Parler',
+        'stop': 'Arrêter',
+        'share': shareSuccess ? 'Partagé' : 'Partager',
+        'clear': 'Effacer',
+        'confirmClear': 'Confirmer',
+        'clearTitle': 'Effacer la transcription',
+        'clearDesc': 'Êtes-vous sûr de vouloir effacer toutes les transcriptions ? Cette action est irréversible.',
+        'cancel': 'Annuler',
+        'lang_zh_TW': 'Chinois traditionnel',
+        'lang_en_US': 'Anglais américain',
+        'lang_en_GB': 'Anglais britannique',
+        'lang_ja_JP': 'Japonais',
+        'lang_fr_FR': 'Français',
+        'lang_th_TH': 'Thaï',
+        'lang_vi_VN': 'Vietnamien',
+        'lang_id_ID': 'Indonésien',
+        'lang_ms_MY': 'Malais',
       },
       'th-TH': {
-        'title1': headerTitle1,
-        'title2': headerTitle2,
+        'title1': 'TUC',
+        'title2': 'AI Smart Interpreter',
         'local': 'ท้องถิ่น',
         'client': 'ลูกค้า',
         'systemReady': 'ระบบพร้อม',
         'adminSettings': 'การตั้งค่าผู้ดูแลระบบ',
         'darkMode': isDarkMode ? 'โหมดสว่าง' : 'โหมดมืด',
+        'audioOutput': 'เอาต์พุตเสียง',
+        'textTranscript': 'การถอดความ',
+        'speaking': 'กำลังพูด',
+        'stop': 'หยุด',
+        'share': shareSuccess ? 'แชร์แล้ว' : 'แชร์',
+        'clear': 'ล้าง',
+        'confirmClear': 'ยืนยันการล้าง',
+        'clearTitle': 'ล้างการถอดความ',
+        'clearDesc': 'คุณแน่ใจหรือไม่ว่าต้องการล้างการถอดความทั้งหมด? การดำเนินการนี้ไม่สามารถยกเลิกได้',
+        'cancel': 'ยกเลิก',
+        'lang_zh_TW': 'จีนดั้งเดิม',
+        'lang_en_US': 'อังกฤษอเมริกัน',
+        'lang_en_GB': 'อังกฤษบริเตน',
+        'lang_ja_JP': 'ญี่ปุ่น',
+        'lang_fr_FR': 'ฝรั่งเศส',
+        'lang_th_TH': 'ไทย',
+        'lang_vi_VN': 'เวียดนาม',
+        'lang_id_ID': 'อินโดนีเซีย',
+        'lang_ms_MY': 'มลายู',
       },
       'vi-VN': {
-        'title1': headerTitle1,
-        'title2': headerTitle2,
+        'title1': 'TUC',
+        'title2': 'AI Smart Interpreter',
         'local': 'Địa phương',
         'client': 'Khách hàng',
         'systemReady': 'Hệ thống sẵn sàng',
         'adminSettings': 'Cài đặt quản trị',
         'darkMode': isDarkMode ? 'Chế độ sáng' : 'Chế độ tối',
+        'audioOutput': 'Đầu ra âm thanh',
+        'textTranscript': 'Bản ghi văn bản',
+        'speaking': 'Đang nói',
+        'stop': 'Dừng',
+        'share': shareSuccess ? 'Đã chia sẻ' : 'Chia sẻ',
+        'clear': 'Xóa',
+        'confirmClear': 'Xác nhận xóa',
+        'clearTitle': 'Xóa bản ghi',
+        'clearDesc': 'Bạn có chắc chắn muốn xóa tất cả bản ghi không? Hành động này không thể hoàn tác.',
+        'cancel': 'Hủy',
+        'lang_zh_TW': 'Trung Quốc truyền thống',
+        'lang_en_US': 'Tiếng Anh Mỹ',
+        'lang_en_GB': 'Tiếng Anh Anh',
+        'lang_ja_JP': 'Tiếng Nhật',
+        'lang_fr_FR': 'Tiếng Pháp',
+        'lang_th_TH': 'Tiếng Thái',
+        'lang_vi_VN': 'Tiếng Việt',
+        'lang_id_ID': 'Tiếng Indonesia',
+        'lang_ms_MY': 'Tiếng Mã Lai',
       },
       'id-ID': {
-        'title1': headerTitle1,
-        'title2': headerTitle2,
+        'title1': 'TUC',
+        'title2': 'AI Smart Interpreter',
         'local': 'Lokal',
         'client': 'Klien',
         'systemReady': 'Sistem siap',
         'adminSettings': 'Pengaturan admin',
         'darkMode': isDarkMode ? 'Mode terang' : 'Mode gelap',
+        'audioOutput': 'Output audio',
+        'textTranscript': 'Transkrip teks',
+        'speaking': 'Berbicara',
+        'stop': 'Berhenti',
+        'share': shareSuccess ? 'Dibagikan' : 'Bagikan',
+        'clear': 'Hapus',
+        'confirmClear': 'Konfirmasi hapus',
+        'clearTitle': 'Hapus transkrip',
+        'clearDesc': 'Apakah Anda yakin ingin menghapus semua transkrip? Tindakan ini tidak dapat dibatalkan.',
+        'cancel': 'Batal',
+        'lang_zh_TW': 'Tionghoa Tradisional',
+        'lang_en_US': 'Inggris Amerika',
+        'lang_en_GB': 'Inggris Britania',
+        'lang_ja_JP': 'Jepang',
+        'lang_fr_FR': 'Prancis',
+        'lang_th_TH': 'Thai',
+        'lang_vi_VN': 'Vietnam',
+        'lang_id_ID': 'Indonesia',
+        'lang_ms_MY': 'Melayu',
       },
       'ms-MY': {
-        'title1': headerTitle1,
-        'title2': headerTitle2,
+        'title1': 'TUC',
+        'title2': 'AI Smart Interpreter',
         'local': 'Tempatan',
         'client': 'Pelanggan',
         'systemReady': 'Sistem sedia',
         'adminSettings': 'Tetapan admin',
         'darkMode': isDarkMode ? 'Mod cerah' : 'Mod gelap',
-      }
+        'audioOutput': 'Output audio',
+        'textTranscript': 'Transkrip teks',
+        'speaking': 'Bercakap',
+        'stop': 'Berhenti',
+        'share': shareSuccess ? 'Dikongsi' : 'Kongsi',
+        'clear': 'Padam',
+        'confirmClear': 'Sahkan padam',
+        'clearTitle': 'Padam transkrip',
+        'clearDesc': 'Adakah anda pasti mahu memadam semua transkrip? Tindakan ini tidak boleh dibatalkan.',
+        'cancel': 'Batal',
+        'lang_zh_TW': 'Cina Tradisional',
+        'lang_en_US': 'Inggeris Amerika',
+        'lang_en_GB': 'Inggeris British',
+        'lang_ja_JP': 'Jepun',
+        'lang_fr_FR': 'Perancis',
+        'lang_th_TH': 'Thai',
+        'lang_vi_VN': 'Vietnam',
+        'lang_id_ID': 'Indonesia',
+        'lang_ms_MY': 'Melayu',
+      },
     };
     return translations[uiLang]?.[key] || translations['zh-TW'][key] || key;
   };
@@ -464,8 +635,9 @@ export default function App() {
 1. Listen carefully to the user.
 2. Identify the language they are speaking.
 3. Translate what they said into the OTHER language (${localName} or ${clientName}).
-4. Speak the translation out loud.
-5. Do not add any conversational filler, greetings, or explanations. ONLY output the translation.`;
+4. If the target language is Chinese, ALWAYS use Traditional Chinese (繁體中文).
+5. Speak the translation out loud.
+6. Do not add any conversational filler, greetings, or explanations. ONLY output the translation.`;
 
       sessionPromiseRef.current = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
@@ -958,9 +1130,9 @@ export default function App() {
                   )}
                 >
                   {isRecording ? (
-                    <><Square className="w-3.5 h-3.5 fill-current" /> <span className="text-xs">停止</span></>
+                    <><Square className="w-3.5 h-3.5 fill-current" /> <span className="text-xs">{getUiText('stop')}</span></>
                   ) : (
-                    <><Mic className="w-3.5 h-3.5" /> <span className="text-xs">Speaking</span></>
+                    <><Mic className="w-3.5 h-3.5" /> <span className="text-xs">{getUiText('speaking')}</span></>
                   )}
                 </button>
               </div>
@@ -985,10 +1157,10 @@ export default function App() {
                   ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30" 
                   : "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100"
               )}
-              title="語音輸出"
+              title={getUiText('audioOutput')}
             >
               {isAudioOutputEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-              語音輸出
+              {getUiText('audioOutput')}
             </button>
             <button
               onClick={() => {
@@ -1001,10 +1173,10 @@ export default function App() {
                   ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30" 
                   : "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100"
               )}
-              title="文字紀錄"
+              title={getUiText('textTranscript')}
             >
               {isTextOutputEnabled ? <MessageSquare className="w-3.5 h-3.5" /> : <MessageSquareOff className="w-3.5 h-3.5" />}
-              文字紀錄
+              {getUiText('textTranscript')}
             </button>
           </div>
         </div>
@@ -1021,7 +1193,7 @@ export default function App() {
         <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col min-h-0 transition-colors duration-300">
           <div className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 px-4 sm:px-5 py-3 flex justify-between items-center flex-shrink-0 transition-colors duration-300">
             <div className="flex items-center gap-3">
-              <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">對話紀錄</h2>
+              <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">{getUiText('textTranscript')}</h2>
               {isRecording && (
                 <div className="flex items-center gap-2 text-xs text-red-500 font-medium animate-pulse">
                   <div className="w-2 h-2 rounded-full bg-red-500"></div>
@@ -1036,7 +1208,7 @@ export default function App() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {shareSuccess ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Share2 className="w-3.5 h-3.5" />}
-                {shareSuccess ? '分享成功' : '分享'}
+                {getUiText('share')}
               </button>
               <button
                 onClick={() => setShowClearConfirm(true)}
@@ -1044,7 +1216,7 @@ export default function App() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                清除
+                {getUiText('clear')}
               </button>
             </div>
           </div>
@@ -1115,20 +1287,20 @@ export default function App() {
         {showClearConfirm && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 max-w-sm w-full animate-in zoom-in-95">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">清除對話紀錄</h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">確定要清除所有的對話紀錄嗎？此動作無法復原。</p>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">{getUiText('clearTitle')}</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">{getUiText('clearDesc')}</p>
               <div className="flex gap-3 justify-end">
                 <button 
                   onClick={() => setShowClearConfirm(false)}
                   className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
-                  取消
+                  {getUiText('cancel')}
                 </button>
                 <button 
                   onClick={handleClear}
                   className="px-4 py-2 rounded-xl text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
                 >
-                  確定清除
+                  {getUiText('confirmClear')}
                 </button>
               </div>
             </div>

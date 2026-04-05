@@ -841,7 +841,7 @@ Rules:
           }
         },
         config: {
-          responseModalities: isAudioOutputEnabled ? [Modality.AUDIO] : [Modality.TEXT],
+          responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } }
           },

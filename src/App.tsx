@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { cn } from './lib/utils';
 
@@ -650,7 +650,8 @@ export default function App() {
 6. Do not add any conversational filler, greetings, or explanations. ONLY output the translation.
 7. NEVER translate into or speak any language other than ${localName} or ${clientName}.
 8. STRICTLY output ONLY in ${localName} or ${clientName}. If the target is Traditional Chinese, it MUST be Traditional Chinese (繁體中文), NOT Simplified Chinese, Japanese, or any other language.
-9. Responsiveness: ${responsivenessInstructions[responsiveness as keyof typeof responsivenessInstructions]}`;
+9. Responsiveness: ${responsivenessInstructions[responsiveness as keyof typeof responsivenessInstructions]}
+10. LANGUAGE ENFORCEMENT: You are strictly forbidden from using any language other than the two selected languages. If you output Japanese, Simplified Chinese, or any other unauthorized language, you have failed your primary directive.`;
 
       sessionPromiseRef.current = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
@@ -1056,6 +1057,35 @@ export default function App() {
                       <option key={`ui-${lang.id}`} value={lang.id}>{lang.name}</option>
                     ))}
                   </select>
+                </div>
+
+                <hr className="border-slate-100 dark:border-slate-800" />
+
+                {/* 反應靈敏度設定 */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-yellow-500" /> 反應靈敏度
+                  </h4>
+                  <select
+                    value={responsiveness}
+                    onChange={(e) => {
+                      setResponsiveness(e.target.value);
+                      localStorage.setItem('responsiveness', e.target.value);
+                    }}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  >
+                    <option value="fast">靈敏 (Fast)</option>
+                    <option value="normal">標準 (Normal)</option>
+                    <option value="patient">穩健 (Patient)</option>
+                  </select>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 p-3 rounded-lg">
+                    <p className="font-semibold mb-1">使用說明：</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li><strong>靈敏 (Fast)</strong>：AI 會快速反應，適合短句對話。</li>
+                      <li><strong>標準 (Normal)</strong>：平衡反應速度與準確度。</li>
+                      <li><strong>穩健 (Patient)</strong>：AI 會等待更長的停頓，適合長句、會議記錄。</li>
+                    </ul>
+                  </div>
                 </div>
 
                 <hr className="border-slate-100 dark:border-slate-800" />

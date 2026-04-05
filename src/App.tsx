@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
+import * as OpenCC from 'opencc-js';
 import { cn } from './lib/utils';
+
+// 初始化簡轉繁轉換器
+const s2tConverter = OpenCC.Converter({ from: 'cn', to: 'tw' });
 
 // 定義支援的語言與腔調清單
 const LANGUAGES = [
@@ -667,8 +671,8 @@ Rules:
               
               // 建立增益節點 (GainNode) 來放大音量，強化收音效果
               const gainNode = audioCtx.createGain();
-              // 增加增益以強化對手機播放音訊的接收能力
-              gainNode.gain.value = 3.5; 
+              // 將增益調回正常值 1.0，避免麥克風收到喇叭播放的 AI 語音造成重複轉譯 (回音問題)
+              gainNode.gain.value = 1.0; 
               
               const processor = audioCtx.createScriptProcessor(4096, 1, 1);
               processorRef.current = processor;
@@ -723,19 +727,28 @@ Rules:
             }
           },
           onmessage: (message: any) => {
+            // 轉換文字為繁體中文 (如果設定包含 zh-TW)
+            const convertToTwIfNeeded = (text: string) => {
+              if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
+                return s2tConverter(text);
+              }
+              return text;
+            };
+
             // 1. 處理使用者的語音轉文字 (inputTranscription)
             // 僅處理使用者輸入，避免將 AI 的輸出誤判為輸入
             const inTranscript = message.serverContent?.inputTranscription;
             if (inTranscript?.text && message.serverContent?.inputTranscription?.text) {
+              const processedText = convertToTwIfNeeded(inTranscript.text);
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 // 確保完整更新 original 欄位，不進行截斷
                 if (last && !last.isFinal && last.isTranslating) {
-                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: inTranscript.text } : t);
+                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: processedText } : t);
                 } else {
                   return [...prev, {
                     id: Date.now().toString(),
-                    original: inTranscript.text,
+                    original: processedText,
                     translated: "",
                     isFinal: false,
                     isTranslating: true,
@@ -752,7 +765,7 @@ Rules:
               let textContent = "";
               for (const part of parts) {
                 if (part.text && isTextOutputEnabledRef.current) {
-                  textContent += part.text;
+                  textContent += convertToTwIfNeeded(part.text);
                 }
                 if (part.inlineData?.data && isAudioOutputEnabledRef.current) {
                   playAudioChunk(part.inlineData.data);
@@ -778,13 +791,14 @@ Rules:
             // 3. 處理模型的語音轉文字 (outputTranscription)
             const outTranscript = message.serverContent?.outputTranscription;
             if (outTranscript?.text && isTextOutputEnabledRef.current) {
+              const processedOutText = convertToTwIfNeeded(outTranscript.text);
               setTranscripts(prev => {
                 const newTranscripts = [...prev];
                 const lastIndex = newTranscripts.length - 1;
                 if (lastIndex >= 0) {
                   newTranscripts[lastIndex] = { 
                     ...newTranscripts[lastIndex], 
-                    translated: newTranscripts[lastIndex].translated + outTranscript.text,
+                    translated: newTranscripts[lastIndex].translated + processedOutText,
                     isTranslating: false 
                   };
                 }

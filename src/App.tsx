@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai';
 import { cn } from './lib/utils';
 
 // 定義支援的語言與腔調清單
@@ -139,8 +139,6 @@ export default function App() {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
-  const [playingTTSId, setPlayingTTSId] = useState<string | null>(null);
-  const [loadingTTSId, setLoadingTTSId] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [uiLang, setUiLang] = useState(() => localStorage.getItem('ui_lang') || 'zh-TW');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -153,19 +151,17 @@ export default function App() {
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
   
-  const recognitionRef = useRef<any>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  
+  // Live API Refs
   const audioContextRef = useRef<AudioContext | null>(null);
-  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const playbackContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const nextPlayTimeRef = useRef<number>(0);
+  const sessionPromiseRef = useRef<any>(null);
+  const isLiveRef = useRef<boolean>(false);
   
-  // 用於處理合理延遲與緩衝記憶區的 Refs
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const sessionCommittedLengthRef = useRef<number>(0);
-  const currentSessionTextRef = useRef<string>('');
-  const currentTranscriptIdRef = useRef<string>('');
-  const flushBufferRef = useRef<() => void>(() => {});
-  
-  const isRecordingRef = useRef<boolean>(false);
   const localLangRef = useRef<string>(localLang);
   const clientLangRef = useRef<string>(clientLang);
   const transcriptsRef = useRef<Transcript[]>([]);
@@ -353,455 +349,225 @@ export default function App() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcripts]);
 
-  // 預先載入 Web Speech API 語音清單
+  // 清除資源
   useEffect(() => {
-    if (window.speechSynthesis) {
-      window.speechSynthesis.getVoices();
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
-      };
-    }
+    return () => {
+      stopLiveSession();
+    };
   }, []);
 
-  // 停止當前播放的語音
-  const stopAudio = () => {
-    if (audioSourceRef.current) {
-      try {
-        audioSourceRef.current.stop();
-      } catch (e) {}
-      audioSourceRef.current = null;
+  const playAudioChunk = (base64Audio: string) => {
+    if (!playbackContextRef.current) {
+      playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
-    setPlayingTTSId(null);
-    setLoadingTTSId(null);
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+    const audioCtx = playbackContextRef.current;
+
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
     }
+
+    const binary = atob(base64Audio);
+    const buffer = new ArrayBuffer(binary.length);
+    const view = new Uint8Array(buffer);
+    for (let i = 0; i < binary.length; i++) {
+      view[i] = binary.charCodeAt(i);
+    }
+    const int16View = new Int16Array(buffer);
+    const pcmData = new Float32Array(int16View.length);
+    for (let i = 0; i < int16View.length; i++) {
+      pcmData[i] = int16View[i] / 32768;
+    }
+
+    const audioBuffer = audioCtx.createBuffer(1, pcmData.length, 24000);
+    audioBuffer.getChannelData(0).set(pcmData);
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioCtx.destination);
+
+    const currentTime = audioCtx.currentTime;
+    if (nextPlayTimeRef.current < currentTime) {
+      nextPlayTimeRef.current = currentTime;
+    }
+
+    source.start(nextPlayTimeRef.current);
+    nextPlayTimeRef.current += audioBuffer.duration;
   };
 
-  // 備用：瀏覽器內建語音合成 (Web Speech API)
-  const fallbackSpeakText = (id: string, text: string, targetLang: string) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = targetLang;
-    utterance.rate = 0.85; // 放慢語速，讓發音更清晰
-    utterance.pitch = 1.05; // 稍微提高音調
-    
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length > 0) {
-      const baseLang = targetLang.split('-')[0];
-      const matchedVoices = voices.filter(v => v.lang.toLowerCase().startsWith(baseLang.toLowerCase()));
-      
-      if (matchedVoices.length > 0) {
-        // 優先挑選高品質語音
-        const bestVoice = matchedVoices.find(v => 
-          v.name.includes('Google') || 
-          v.name.includes('Premium') || 
-          v.name.includes('Enhanced') || 
-          v.name.includes('Siri') ||
-          v.name.includes('Microsoft')
-        ) || matchedVoices[0];
-        
-        utterance.voice = bestVoice;
-      }
+  const stopLiveSession = () => {
+    isLiveRef.current = false;
+    setIsRecording(false);
+
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
     }
-    
-    utterance.onend = () => {
-      setPlayingTTSId(null);
-    };
-    
-    window.speechSynthesis.speak(utterance);
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (sessionPromiseRef.current) {
+      sessionPromiseRef.current.then((session: any) => {
+        if (session && typeof session.close === 'function') {
+          session.close();
+        }
+      }).catch(() => {});
+      sessionPromiseRef.current = null;
+    }
+    nextPlayTimeRef.current = 0;
   };
 
-  // 語音朗讀功能 (優先使用 Gemini TTS 獲得極致音質)
-  const speakText = async (id: string, text: string, targetLang: string) => {
-    // 如果正在播放同一個，則停止
-    if (playingTTSId === id || loadingTTSId === id) {
-      stopAudio();
-      return;
-    }
-
-    stopAudio();
-
+  const startLiveSession = async () => {
     if (!userApiKey) {
-      // 如果沒有 API Key，退回使用瀏覽器內建語音
-      fallbackSpeakText(id, text, targetLang);
+      setErrorMsg('請先在管理者設定中配置您的 Gemini API 金鑰。');
+      setShowAdminSettings(true);
       return;
     }
 
+    setIsRecording(true);
+    isLiveRef.current = true;
+    setErrorMsg(null);
+
     try {
-      setLoadingTTSId(id);
       const ai = new GoogleGenAI({ apiKey: userApiKey });
-      
-      // 加上語言提示，確保 AI 用正確的語言發音
-      const prompt = `Please read the following text in ${targetLang} naturally and clearly: ${text}`;
-      
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: prompt }] }],
-        config: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Aoede' }, // Aoede 聲音清晰自然
-            },
+
+      const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
+      const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
+
+      const systemInstruction = `You are a real-time bilingual translator. The user will speak in either ${localName} or ${clientName}.
+1. Listen carefully to the user.
+2. Identify the language they are speaking.
+3. Translate what they said into the OTHER language (${localName} or ${clientName}).
+4. Speak the translation out loud.
+5. Do not add any conversational filler, greetings, or explanations. ONLY output the translation.`;
+
+      sessionPromiseRef.current = ai.live.connect({
+        model: "gemini-3.1-flash-live-preview",
+        callbacks: {
+          onopen: async () => {
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+                channelCount: 1,
+                sampleRate: 16000,
+              } });
+              mediaStreamRef.current = stream;
+
+              const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+              audioContextRef.current = audioCtx;
+
+              const source = audioCtx.createMediaStreamSource(stream);
+              const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+              processorRef.current = processor;
+
+              processor.onaudioprocess = (e) => {
+                if (!isLiveRef.current) return;
+                const inputData = e.inputBuffer.getChannelData(0);
+                const pcm16 = new Int16Array(inputData.length);
+                for (let i = 0; i < inputData.length; i++) {
+                  pcm16[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+                }
+                const buffer = new Uint8Array(pcm16.buffer);
+                let binary = '';
+                for (let i = 0; i < buffer.byteLength; i++) {
+                  binary += String.fromCharCode(buffer[i]);
+                }
+                const base64 = btoa(binary);
+
+                sessionPromiseRef.current?.then((session: any) => {
+                  session.sendRealtimeInput({
+                    audio: { data: base64, mimeType: 'audio/pcm;rate=16000' }
+                  });
+                });
+              };
+
+              source.connect(processor);
+              processor.connect(audioCtx.destination);
+            } catch (err) {
+              console.error("Mic error:", err);
+              setErrorMsg("麥克風存取失敗，請確認權限");
+              stopLiveSession();
+            }
           },
+          onmessage: (message: any) => {
+            const parts = message.serverContent?.modelTurn?.parts;
+            if (parts) {
+              let textContent = "";
+              for (const part of parts) {
+                if (part.text) {
+                  textContent += part.text;
+                }
+                if (part.inlineData?.data) {
+                  playAudioChunk(part.inlineData.data);
+                }
+              }
+              if (textContent) {
+                setTranscripts(prev => {
+                  const last = prev[prev.length - 1];
+                  if (last && !last.isFinal) {
+                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: t.translated + textContent } : t);
+                  } else {
+                    return [...prev, {
+                      id: Date.now().toString(),
+                      original: "語音輸入 (Voice Input)",
+                      translated: textContent,
+                      isFinal: false,
+                      isTranslating: false,
+                      sourceLang: "Auto",
+                      targetLang: "Auto"
+                    }];
+                  }
+                });
+              }
+            }
+
+            if (message.serverContent?.turnComplete) {
+              setTranscripts(prev => {
+                const last = prev[prev.length - 1];
+                if (last && !last.isFinal) {
+                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, isFinal: true } : t);
+                }
+                return prev;
+              });
+            }
+
+            if (message.serverContent?.interrupted) {
+              nextPlayTimeRef.current = 0;
+            }
+          },
+          onclose: () => {
+            stopLiveSession();
+          },
+          onerror: (err: any) => {
+            console.error("Live API Error:", err);
+            setErrorMsg("連線發生錯誤");
+            stopLiveSession();
+          }
         },
-      });
-
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (base64Audio) {
-        if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        }
-        const audioCtx = audioContextRef.current;
-        if (audioCtx.state === 'suspended') {
-          await audioCtx.resume();
-        }
-
-        const binaryString = atob(base64Audio);
-        const buffer = new ArrayBuffer(binaryString.length);
-        const view = new Uint8Array(buffer);
-        for (let i = 0; i < binaryString.length; i++) {
-          view[i] = binaryString.charCodeAt(i);
-        }
-        
-        // Gemini TTS 回傳 16-bit PCM
-        const int16View = new Int16Array(buffer);
-        const pcmData = new Float32Array(int16View.length);
-        for (let i = 0; i < int16View.length; i++) {
-          pcmData[i] = int16View[i] / 32768;
-        }
-        
-        const audioBuffer = audioCtx.createBuffer(1, pcmData.length, 24000);
-        audioBuffer.getChannelData(0).set(pcmData);
-        
-        const source = audioCtx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(audioCtx.destination);
-        
-        source.onended = () => {
-          setPlayingTTSId(null);
-        };
-        
-        audioSourceRef.current = source;
-        setLoadingTTSId(null);
-        setPlayingTTSId(id);
-        source.start();
-      } else {
-        throw new Error("No audio data received");
-      }
-    } catch (err) {
-      console.error("Gemini TTS Error:", err);
-      setLoadingTTSId(null);
-      // 發生錯誤時，退回使用瀏覽器內建語音
-      fallbackSpeakText(id, text, targetLang);
-    }
-  };
-
-  // 執行翻譯 (直接在前端呼叫 Gemini API)
-  const translateText = async (id: string, text: string) => {
-    setTranscripts(prev => prev.map(t => 
-      t.id === id ? { ...t, isTranslating: true, isFinal: true } : t
-    ));
-
-    try {
-      if (!userApiKey) {
-        throw new Error("請先在上方設定您的 Gemini API 金鑰。");
-      }
-      
-      const ai = new GoogleGenAI({ apiKey: userApiKey });
-
-      const prompt = `You are a bilingual translator. The two languages are ${localLangRef.current} and ${clientLangRef.current}.
-Detect the language of the text.
-If it is ${localLangRef.current}, translate to ${clientLangRef.current}.
-If it is ${clientLangRef.current}, translate to ${localLangRef.current}.
-If it's another language, translate to ${localLangRef.current}.
-Return EXACTLY in this format: [DetectedLangCode] | [TranslatedText]
-Text: ${text}`;
-
-      const responseStream = await ai.models.generateContentStream({
-        model: "gemini-3.1-flash-lite-preview",
-        contents: prompt,
         config: {
-          temperature: 0.1,
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } }
+          },
+          systemInstruction: systemInstruction,
         }
       });
-
-      let fullResponse = "";
-      let detectedLang = "";
-      let translatedText = "";
-      let isParsing = true;
-
-      for await (const chunk of responseStream) {
-        fullResponse += chunk.text || "";
-        
-        if (isParsing) {
-          const parts = fullResponse.split('|');
-          if (parts.length >= 2) {
-            detectedLang = parts[0].trim();
-            translatedText = parts.slice(1).join('|').trim();
-            isParsing = false;
-            
-            // Update detected language in UI
-            setTranscripts(prev => prev.map(t => 
-              t.id === id ? { ...t, detectedLang, translated: translatedText } : t
-            ));
-          }
-        } else {
-          translatedText += chunk.text || "";
-          setTranscripts(prev => prev.map(t => 
-            t.id === id ? { ...t, translated: translatedText } : t
-          ));
-        }
-      }
-
-      setTranscripts(prev => prev.map(t => 
-        t.id === id ? { ...t, isTranslating: false } : t
-      ));
-
-    } catch (error: any) {
-      console.error("Translation error:", error);
-      let errorMessage = "翻譯失敗，請檢查網路狀態或 API 金鑰。";
-      if (error.message && error.message.includes("API key not valid")) {
-        errorMessage = "API 金鑰無效，請檢查您的 GEMINI_API_KEY 設定。";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setTranscripts(prev => prev.map(t => 
-        t.id === id ? { ...t, error: errorMessage, isTranslating: false } : t
-      ));
+    } catch (err: any) {
+      console.error("Failed to start Live API:", err);
+      setErrorMsg(err.message || "啟動失敗");
+      stopLiveSession();
     }
   };
-
-  // 初始化 Web Speech API (STT)
-  function initSpeechRecognition() {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
-    if (!SpeechRecognition) {
-      setErrorMsg('您的瀏覽器不支援語音辨識功能，請使用最新版的 Chrome 或 Edge 瀏覽器。');
-      return false;
-    }
-
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = localLangRef.current;
-    recognition.continuous = true; 
-    recognition.interimResults = true; 
-
-    const flushBuffer = () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-      const sessionText = currentSessionTextRef.current;
-      if (sessionCommittedLengthRef.current > sessionText.length) {
-        sessionCommittedLengthRef.current = sessionText.length;
-      }
-      const textToSend = sessionText.substring(sessionCommittedLengthRef.current).trim();
-      
-      if (textToSend) {
-        let idToUse = currentTranscriptIdRef.current;
-        if (!idToUse) {
-          idToUse = 'temp-' + Date.now().toString();
-          setTranscripts(prev => [
-            ...prev,
-            {
-              id: idToUse,
-              original: textToSend,
-              translated: '',
-              isFinal: false,
-              isTranslating: false,
-              sourceLang: 'Auto',
-              targetLang: 'Auto'
-            }
-          ]);
-        }
-        
-        translateText(idToUse, textToSend);
-        sessionCommittedLengthRef.current = sessionText.length;
-        currentTranscriptIdRef.current = '';
-      }
-    };
-    flushBufferRef.current = flushBuffer;
-
-    recognition.onstart = () => {
-      setErrorMsg(null);
-      sessionCommittedLengthRef.current = 0;
-      currentSessionTextRef.current = '';
-    };
-
-    recognition.onresult = (event: any) => {
-      let sessionFinals = '';
-      let sessionInterims = '';
-
-      for (let i = 0; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          sessionFinals += event.results[i][0].transcript;
-        } else {
-          sessionInterims += event.results[i][0].transcript;
-        }
-      }
-
-      const sessionText = sessionFinals + sessionInterims;
-      // 判斷文字是否真的有改變
-      const textChanged = sessionText !== currentSessionTextRef.current;
-      currentSessionTextRef.current = sessionText;
-      
-      // Safeguard: if interim result shrinks, ensure we don't get out of bounds
-      if (sessionCommittedLengthRef.current > sessionText.length) {
-        sessionCommittedLengthRef.current = sessionText.length;
-      }
-      
-      const uncommittedText = sessionText.substring(sessionCommittedLengthRef.current);
-
-      if (!uncommittedText.trim() && !currentTranscriptIdRef.current) return;
-
-      if (!currentTranscriptIdRef.current) {
-        currentTranscriptIdRef.current = 'temp-' + Date.now().toString();
-        setTranscripts(prev => [
-          ...prev,
-          {
-            id: currentTranscriptIdRef.current,
-            original: uncommittedText,
-            translated: '',
-            isFinal: false,
-            isTranslating: false,
-            sourceLang: 'Auto',
-            targetLang: 'Auto'
-          }
-        ]);
-      } else if (textChanged) {
-        // 只有當文字改變時才更新 UI，避免不必要的重新渲染
-        const idToUpdate = currentTranscriptIdRef.current;
-        setTranscripts(prev => prev.map(t =>
-          t.id === idToUpdate ? { ...t, original: uncommittedText } : t
-        ));
-      }
-
-      // 1. 立即送出已確定的完整句子 (isFinal)，無需等待延遲
-      if (sessionFinals.length > sessionCommittedLengthRef.current) {
-        const textToSend = sessionFinals.substring(sessionCommittedLengthRef.current).trim();
-        if (textToSend) {
-          translateText(currentTranscriptIdRef.current, textToSend);
-          sessionCommittedLengthRef.current = sessionFinals.length;
-          currentTranscriptIdRef.current = ''; // 重置 ID，讓下一句話產生新的對話框
-        }
-      }
-
-      // 2. 針對尚未確定的片段 (interim)，給予極短的延遲後送出
-      const remainingUncommitted = sessionText.substring(sessionCommittedLengthRef.current);
-      if (remainingUncommitted.trim()) {
-        // 只有當文字真正改變時，或計時器未啟動時，才重置/啟動計時器。
-        // 避免瀏覽器狂發相同的 interim 結果導致計時器不斷被重置，進而造成最後一句話延遲。
-        if (textChanged || !debounceTimerRef.current) {
-          if (debounceTimerRef.current) {
-            clearTimeout(debounceTimerRef.current);
-          }
-          debounceTimerRef.current = setTimeout(() => {
-            flushBuffer();
-          }, silenceThreshold); 
-        }
-      } else {
-        if (debounceTimerRef.current) {
-          clearTimeout(debounceTimerRef.current);
-          debounceTimerRef.current = null;
-        }
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      if (event.error !== 'aborted' && event.error !== 'no-speech') {
-        console.error('Speech recognition error', event.error);
-      }
-      
-      if (event.error === 'not-allowed') {
-        setErrorMsg('麥克風權限遭拒，請在瀏覽器設定中允許麥克風存取權限。');
-        setIsRecording(false);
-      } else if (event.error === 'network') {
-        setErrorMsg('網路連線異常，無法進行語音辨識。');
-        setIsRecording(false);
-      } else if (event.error === 'no-speech') {
-        // 忽略 no-speech，讓它繼續錄音
-        console.log('No speech detected, continuing...');
-      } else if (event.error === 'audio-capture') {
-        setErrorMsg('找不到麥克風設備，請確認麥克風已正確連接。');
-        setIsRecording(false);
-      } else if (event.error === 'aborted') {
-        // 忽略 aborted，這通常是因為使用者手動停止，或是瀏覽器自動中斷
-        console.log('Speech recognition aborted.');
-      } else {
-        setErrorMsg(`語音辨識發生錯誤: ${event.error}`);
-        setIsRecording(false);
-      }
-    };
-
-    recognition.onend = () => {
-      flushBuffer();
-      // 如果仍處於錄音狀態，自動重啟 (處理 Web Speech API 自動斷開的問題)
-      if (isRecordingRef.current) {
-        setTimeout(() => {
-          try {
-            // 重新初始化一個新的 recognition 實例，避免舊實例卡死
-            const isSupported = initSpeechRecognition();
-            if (isSupported && recognitionRef.current) {
-              recognitionRef.current.start();
-            }
-          } catch (e) {
-            console.error('Restart recognition error:', e);
-          }
-        }, 200); // 稍微增加重啟延遲，避免過度頻繁觸發
-      }
-    };
-
-    recognitionRef.current = recognition;
-    return true;
-  }
 
   // 切換錄音狀態
   const toggleRecording = async () => {
     if (isRecording) {
-      // 停止錄音
-      setIsRecording(false);
-      flushBufferRef.current();
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
+      stopLiveSession();
     } else {
-      if (!userApiKey) {
-        setErrorMsg('請先在管理者設定中配置您的 Gemini API 金鑰。');
-        setShowAdminSettings(true);
-        return;
-      }
-
-      // 開始錄音前，先明確請求麥克風權限 (解決 iframe 內權限問題)
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (err) {
-        console.error("Microphone permission denied:", err);
-        setErrorMsg('麥克風權限遭拒，請允許麥克風存取權限。');
-        return;
-      }
-
-      // 開始錄音
-      setErrorMsg(null); // 清除先前的錯誤
-      setIsRecording(true);
-      
-      const isSupported = initSpeechRecognition();
-      if (isSupported && recognitionRef.current) {
-        try {
-          recognitionRef.current.start();
-        } catch (e: any) {
-          console.error("Failed to start recognition:", e);
-          setErrorMsg(`無法啟動麥克風: ${e.message || '未知錯誤'}`);
-          setIsRecording(false);
-        }
-      }
+      startLiveSession();
     }
   };
 
@@ -1116,20 +882,7 @@ Text: ${text}`;
             </div>
 
             <div className="flex items-center justify-center">
-              <button 
-                onClick={() => {
-                  const temp = localLang;
-                  setLocalLang(clientLang);
-                  setClientLang(temp);
-                  if (isRecording) {
-                    setTimeout(() => initSpeechRecognition(), 100);
-                  }
-                }}
-                className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
-                title="切換語言方向"
-              >
-                <ArrowRightLeft className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-              </button>
+              <ArrowRightLeft className="w-4 h-4 text-slate-400 dark:text-slate-500" />
             </div>
 
             <div className="flex-1">
@@ -1255,43 +1008,13 @@ Text: ${text}`;
                             <div className="flex items-start justify-between gap-2">
                               <div className="text-[15px] leading-tight text-blue-700 dark:text-blue-400 font-medium">
                                 {t.translated}
-                                {t.isTranslating && (
-                                  t.translated ? (
-                                    <span className="w-1.5 h-4 bg-blue-400/70 animate-pulse inline-block ml-1 align-middle"></span>
-                                  ) : (
-                                    <div className="flex items-center gap-2 text-blue-500/80">
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                      <span className="text-sm">翻譯中...</span>
-                                    </div>
-                                  )
-                                )}
                               </div>
-                              {!t.isTranslating && t.translated && (
-                                <button 
-                                  onClick={() => speakText(t.id, t.translated, clientLang)}
-                                  className={cn(
-                                    "p-1.5 rounded-full transition-colors flex-shrink-0",
-                                    playingTTSId === t.id 
-                                      ? "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 animate-pulse" 
-                                      : "hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                                  )}
-                                  title={playingTTSId === t.id ? "停止朗讀" : "高音質朗讀翻譯結果"}
-                                >
-                                  {loadingTTSId === t.id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : playingTTSId === t.id ? (
-                                    <StopIcon className="w-4 h-4 fill-current" />
-                                  ) : (
-                                    <Volume2 className="w-4 h-4" />
-                                  )}
-                                </button>
-                              )}
                             </div>
                           )
                         ) : (
                           <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-sm">
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>等待語音結束...</span>
+                            <span>AI 聆聽與翻譯中...</span>
                           </div>
                         )}
                       </div>

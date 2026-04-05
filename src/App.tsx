@@ -150,6 +150,7 @@ export default function App() {
   
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showResponsivenessInfo, setShowResponsivenessInfo] = useState(false);
   
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
@@ -691,7 +692,7 @@ Rules:
 2. If the user speaks ${localName}, translate to ${clientName}.
 3. If the user speaks ${clientName}, translate to ${localName}.
 4. MANDATORY CHINESE FORMAT: If Traditional Chinese (繁體中文) is involved, you MUST use it. NEVER use Simplified Chinese (簡體中文).
-5. LANGUAGE LOCK: You are strictly forbidden from outputting any language other than ${localName} or ${clientName}. If you detect Korean, Japanese, or Simplified Chinese, you MUST immediately translate it to the correct target language (${localName} or ${clientName}) or ignore it.
+5. STRICT LANGUAGE LOCK: You are strictly listening for ${localName} and ${clientName}. If you hear ANY other language (e.g., Spanish, Korean, Japanese, etc.) or background noise, you MUST completely IGNORE it. DO NOT translate it. DO NOT output anything.
 6. NO FILLER: Do not add greetings, explanations, or conversational filler. Output ONLY the translation.
 7. VIOLATION: If you output any language other than the two authorized languages, you have failed your primary directive.`;
 
@@ -773,28 +774,62 @@ Rules:
               return text;
             };
 
+            // 過濾非指定語系的字元 (避免 STT 幻覺產生韓文/日文等)
+            const filterUnsupportedScripts = (text: string) => {
+              let filtered = text;
+              const langs = [localLangRef.current, clientLangRef.current];
+              const hasKorean = langs.some(l => l.startsWith('ko'));
+              const hasJapanese = langs.some(l => l.startsWith('ja'));
+              const hasChinese = langs.some(l => l.startsWith('zh'));
+              const hasThai = langs.some(l => l.startsWith('th'));
+              
+              if (!hasKorean) {
+                filtered = filtered.replace(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g, '');
+              }
+              if (!hasJapanese) {
+                filtered = filtered.replace(/[\u3040-\u309F\u30A0-\u30FF]/g, '');
+              }
+              if (!hasThai) {
+                filtered = filtered.replace(/[\u0E00-\u0E7F]/g, '');
+              }
+              if (!hasChinese && !hasJapanese) {
+                filtered = filtered.replace(/[\u4E00-\u9FFF]/g, '');
+              }
+              return filtered.trim();
+            };
+
             // 1. 處理使用者的語音轉文字 (inputTranscription)
             // 僅處理使用者輸入，避免將 AI 的輸出誤判為輸入
             const inTranscript = message.serverContent?.inputTranscription;
             if (inTranscript?.text) {
-              const processedText = convertToTwIfNeeded(inTranscript.text);
-              setTranscripts(prev => {
-                const last = prev[prev.length - 1];
-                // 確保完整更新 original 欄位，改為「附加 (append)」而非「覆蓋 (replace)」，因為語音辨識結果是分段傳送的
-                if (last && !last.isFinal) {
-                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: t.original + processedText } : t);
-                } else {
-                  return [...prev, {
-                    id: Date.now().toString(),
-                    original: processedText,
-                    translated: "",
-                    isFinal: false,
-                    isTranslating: true,
-                    sourceLang: "Auto",
-                    targetLang: "Auto"
-                  }];
-                }
-              });
+              let cleanedText = filterUnsupportedScripts(inTranscript.text);
+              // 如果過濾後為空，但原本有字，給予一個佔位符，避免畫面出現奇怪的空白，等待 AI 翻譯
+              if (!cleanedText && inTranscript.text.trim()) {
+                cleanedText = "(...)";
+              }
+              
+              if (cleanedText) {
+                const processedText = convertToTwIfNeeded(cleanedText);
+                setTranscripts(prev => {
+                  const last = prev[prev.length - 1];
+                  // 確保完整更新 original 欄位，改為「附加 (append)」而非「覆蓋 (replace)」，因為語音辨識結果是分段傳送的
+                  if (last && !last.isFinal) {
+                    // 如果原本是佔位符，就直接替換掉
+                    const newOriginal = last.original === "(...)" ? processedText : last.original + processedText;
+                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: newOriginal } : t);
+                  } else {
+                    return [...prev, {
+                      id: Date.now().toString(),
+                      original: processedText,
+                      translated: "",
+                      isFinal: false,
+                      isTranslating: true,
+                      sourceLang: "Auto",
+                      targetLang: "Auto"
+                    }];
+                  }
+                });
+              }
             }
 
             // 2. 處理模型回傳的音訊與文字 (modelTurn)
@@ -849,6 +884,10 @@ Rules:
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 if (last && !last.isFinal) {
+                  // 如果 AI 完全沒有輸出翻譯，代表判定為雜音或非指定語言，直接移除該筆紀錄
+                  if (!last.translated.trim()) {
+                    return prev.slice(0, -1);
+                  }
                   return prev.map((t, i) => i === prev.length - 1 ? { ...t, isFinal: true, isTranslating: false } : t);
                 }
                 return prev;
@@ -1326,7 +1365,7 @@ Rules:
                 <option value="patient">穩健</option>
               </select>
               <button
-                onClick={() => alert("使用說明：\n\n光速 (Extreme)：逐字即時翻譯，完全不等待，速度至上。\n極速 (Hyper)：聽到2-3個字即刻翻譯，極具侵略性的打斷。\n超靈敏 (Super Fast)：聽到短語即刻翻譯，適合極短對答。\n靈敏 (Fast)：AI 會快速反應，適合短句對話。\n標準 (Normal)：平衡反應速度與準確度。\n穩健 (Patient)：AI 會等待更長的停頓，適合長句、會議記錄。")}
+                onClick={() => setShowResponsivenessInfo(true)}
                 className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors"
                 title="說明"
               >
@@ -1489,6 +1528,82 @@ Rules:
                   className="px-4 py-2 rounded-xl text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
                 >
                   {getUiText('confirmClear')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Responsiveness Info Modal */}
+        {showResponsivenessInfo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[80vh] animate-in zoom-in-95">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-blue-500" />
+                  反應靈敏度說明
+                </h3>
+                <button onClick={() => setShowResponsivenessInfo(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-4 overflow-y-auto text-sm text-slate-600 dark:text-slate-300 space-y-4">
+                <p>以下是目前系統中實際運作的對應關係，包含前端 UI 顯示以及實際發送給 AI 的底層英文指令：</p>
+                
+                <div>
+                  <strong className="text-slate-800 dark:text-slate-100">光速 (Extreme)</strong>
+                  <ul className="list-disc pl-5 mt-1 space-y-1">
+                    <li>UI 說明：逐字即時翻譯，完全不等待，速度至上。</li>
+                    <li className="font-mono text-xs text-slate-500">Translate instantly word-by-word. Do not wait for phrases. Interrupt immediately. Speed is the absolute highest priority.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <strong className="text-slate-800 dark:text-slate-100">極速 (Hyper)</strong>
+                  <ul className="list-disc pl-5 mt-1 space-y-1">
+                    <li>UI 說明：聽到 2-3 個字即刻翻譯，極具侵略性的打斷。</li>
+                    <li className="font-mono text-xs text-slate-500">Translate instantly upon hearing 2-3 words. Extremely aggressive interruption. Prioritize speed over perfect grammar.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <strong className="text-slate-800 dark:text-slate-100">超靈敏 (Super Fast)</strong>
+                  <ul className="list-disc pl-5 mt-1 space-y-1">
+                    <li>UI 說明：聽到短語即刻翻譯，適合極短對答。</li>
+                    <li className="font-mono text-xs text-slate-500">Be hyper-responsive. Translate instantly the moment you hear any complete phrase, do not wait for the user to finish their thought or sentence.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <strong className="text-slate-800 dark:text-slate-100">靈敏 (Fast)</strong>
+                  <ul className="list-disc pl-5 mt-1 space-y-1">
+                    <li>UI 說明：AI 會快速反應，適合短句對話。</li>
+                    <li className="font-mono text-xs text-slate-500">Be extremely responsive. Translate immediately even with short pauses.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <strong className="text-slate-800 dark:text-slate-100">標準 (Normal)</strong>
+                  <ul className="list-disc pl-5 mt-1 space-y-1">
+                    <li>UI 說明：平衡反應速度與準確度。</li>
+                    <li className="font-mono text-xs text-slate-500">Be balanced. Translate after natural pauses.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <strong className="text-slate-800 dark:text-slate-100">穩健 (Patient)</strong>
+                  <ul className="list-disc pl-5 mt-1 space-y-1">
+                    <li>UI 說明：AI 會等待更長的停頓，適合長句、會議記錄。</li>
+                    <li className="font-mono text-xs text-slate-500">Be patient. Wait for longer pauses to ensure complete sentences before translating.</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => setShowResponsivenessInfo(false)}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all shadow-sm"
+                >
+                  了解
                 </button>
               </div>
             </div>

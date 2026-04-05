@@ -640,6 +640,7 @@ export default function App() {
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
       const responsivenessInstructions = {
+        super_fast: "Be hyper-responsive. Translate instantly the moment you hear any complete phrase, do not wait for the user to finish their thought or sentence.",
         fast: "Be extremely responsive. Translate immediately even with short pauses.",
         normal: "Be balanced. Translate after natural pauses.",
         patient: "Be patient. Wait for longer pauses to ensure complete sentences before translating."
@@ -1209,12 +1210,13 @@ Rules:
                 className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 title="反應靈敏度"
               >
+                <option value="super_fast">超靈敏</option>
                 <option value="fast">靈敏</option>
                 <option value="normal">標準</option>
                 <option value="patient">穩健</option>
               </select>
               <button
-                onClick={() => alert("使用說明：\n\n靈敏 (Fast)：AI 會快速反應，適合短句對話。\n標準 (Normal)：平衡反應速度與準確度。\n穩健 (Patient)：AI 會等待更長的停頓，適合長句、會議記錄。")}
+                onClick={() => alert("使用說明：\n\n超靈敏 (Super Fast)：極度靈敏，聽到短語即刻翻譯，適合極短對答。\n靈敏 (Fast)：AI 會快速反應，適合短句對話。\n標準 (Normal)：平衡反應速度與準確度。\n穩健 (Patient)：AI 會等待更長的停頓，適合長句、會議記錄。")}
                 className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors"
                 title="說明"
               >

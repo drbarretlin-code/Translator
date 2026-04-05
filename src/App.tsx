@@ -619,9 +619,12 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1, // 強制單聲道，讓麥克風陣列更專注於人聲
+          noiseSuppression: true, // 強化降噪
+          autoGainControl: true,  // 強化自動增益
+          // @ts-ignore - 針對部分瀏覽器支援的進階設定
+          latency: 0,
+          sampleRate: 16000,
+          channelCount: 1,
         } 
       });
       mediaStreamRef.current = stream;

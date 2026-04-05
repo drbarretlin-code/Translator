@@ -738,13 +738,13 @@ Rules:
             // 1. 處理使用者的語音轉文字 (inputTranscription)
             // 僅處理使用者輸入，避免將 AI 的輸出誤判為輸入
             const inTranscript = message.serverContent?.inputTranscription;
-            if (inTranscript?.text && message.serverContent?.inputTranscription?.text) {
+            if (inTranscript?.text) {
               const processedText = convertToTwIfNeeded(inTranscript.text);
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
-                // 確保完整更新 original 欄位，不進行截斷
-                if (last && !last.isFinal && last.isTranslating) {
-                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: processedText } : t);
+                // 確保完整更新 original 欄位，改為「附加 (append)」而非「覆蓋 (replace)」，因為語音辨識結果是分段傳送的
+                if (last && !last.isFinal) {
+                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: t.original + processedText } : t);
                 } else {
                   return [...prev, {
                     id: Date.now().toString(),

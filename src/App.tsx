@@ -149,6 +149,7 @@ export default function App() {
   
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
+  const [responsiveness, setResponsiveness] = useState(() => localStorage.getItem('responsiveness') || 'normal');
   
   // 輸出模式控制
   const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(() => localStorage.getItem('audio_output') !== 'false');
@@ -634,6 +635,12 @@ export default function App() {
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
+      const responsivenessInstructions = {
+        fast: "Be extremely responsive. Translate immediately even with short pauses.",
+        normal: "Be balanced. Translate after natural pauses.",
+        patient: "Be patient. Wait for longer pauses to ensure complete sentences before translating."
+      };
+
       const systemInstruction = `You are a real-time bilingual translator. The user will ONLY speak in either ${localName} or ${clientName}.
 1. Listen carefully to the user.
 2. Identify which of the two languages (${localName} or ${clientName}) they are speaking.
@@ -642,7 +649,8 @@ export default function App() {
 5. Speak the translation out loud.
 6. Do not add any conversational filler, greetings, or explanations. ONLY output the translation.
 7. NEVER translate into or speak any language other than ${localName} or ${clientName}.
-8. STRICTLY output ONLY in ${localName} or ${clientName}. If the target is Traditional Chinese, it MUST be Traditional Chinese (繁體中文), NOT Simplified Chinese, Japanese, or any other language.`;
+8. STRICTLY output ONLY in ${localName} or ${clientName}. If the target is Traditional Chinese, it MUST be Traditional Chinese (繁體中文), NOT Simplified Chinese, Japanese, or any other language.
+9. Responsiveness: ${responsivenessInstructions[responsiveness as keyof typeof responsivenessInstructions]}`;
 
       sessionPromiseRef.current = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",

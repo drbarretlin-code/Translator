@@ -649,9 +649,9 @@ export default function App() {
 5. Speak the translation out loud.
 6. Do not add any conversational filler, greetings, or explanations. ONLY output the translation.
 7. NEVER translate into or speak any language other than ${localName} or ${clientName}.
-8. STRICTLY output ONLY in ${localName} or ${clientName}. If the target is Traditional Chinese, it MUST be Traditional Chinese (繁體中文), NOT Simplified Chinese, Japanese, or any other language.
+8. STRICTLY output ONLY in ${localName} or ${clientName}. If the target is Traditional Chinese, it MUST be Traditional Chinese (繁體中文). DO NOT use Simplified Chinese (簡體中文), Japanese, or any other language.
 9. Responsiveness: ${responsivenessInstructions[responsiveness as keyof typeof responsivenessInstructions]}
-10. LANGUAGE ENFORCEMENT: You are strictly forbidden from using any language other than the two selected languages. If you output Japanese, Simplified Chinese, or any other unauthorized language, you have failed your primary directive.`;
+10. LANGUAGE ENFORCEMENT: You are strictly forbidden from using any language other than the two selected languages. If you output Simplified Chinese, Japanese, or any other unauthorized language, you have failed your primary directive.`;
 
       sessionPromiseRef.current = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",

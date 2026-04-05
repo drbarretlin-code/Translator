@@ -445,6 +445,20 @@ export default function App() {
     setErrorMsg(null);
 
     try {
+      // Use default sample rate to ensure compatibility across all devices (especially Android)
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = audioCtx;
+      await audioCtx.resume();
+
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        } 
+      });
+      mediaStreamRef.current = stream;
+
       const ai = new GoogleGenAI({ apiKey: userApiKey });
 
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
@@ -460,16 +474,12 @@ export default function App() {
       sessionPromiseRef.current = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         callbacks: {
-          onopen: async () => {
+          onopen: () => {
             try {
-              const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-                channelCount: 1,
-                sampleRate: 16000,
-              } });
-              mediaStreamRef.current = stream;
-
-              const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-              audioContextRef.current = audioCtx;
+              if (!audioContextRef.current || !mediaStreamRef.current) return;
+              
+              const audioCtx = audioContextRef.current;
+              const stream = mediaStreamRef.current;
 
               const source = audioCtx.createMediaStreamSource(stream);
               const processor = audioCtx.createScriptProcessor(4096, 1, 1);
@@ -478,9 +488,27 @@ export default function App() {
               processor.onaudioprocess = (e) => {
                 if (!isLiveRef.current) return;
                 const inputData = e.inputBuffer.getChannelData(0);
-                const pcm16 = new Int16Array(inputData.length);
-                for (let i = 0; i < inputData.length; i++) {
-                  pcm16[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+                const inputSampleRate = audioCtx.sampleRate;
+                const targetSampleRate = 16000;
+                
+                // Resample to 16000Hz if necessary
+                let resampledData = inputData;
+                if (inputSampleRate !== targetSampleRate) {
+                  const ratio = inputSampleRate / targetSampleRate;
+                  const outputLength = Math.round(inputData.length / ratio);
+                  resampledData = new Float32Array(outputLength);
+                  for (let i = 0; i < outputLength; i++) {
+                    const index = i * ratio;
+                    const index1 = Math.floor(index);
+                    const index2 = Math.min(index1 + 1, inputData.length - 1);
+                    const fraction = index - index1;
+                    resampledData[i] = inputData[index1] * (1 - fraction) + inputData[index2] * fraction;
+                  }
+                }
+
+                const pcm16 = new Int16Array(resampledData.length);
+                for (let i = 0; i < resampledData.length; i++) {
+                  pcm16[i] = Math.max(-1, Math.min(1, resampledData[i])) * 32767;
                 }
                 const buffer = new Uint8Array(pcm16.buffer);
                 let binary = '';
@@ -499,8 +527,8 @@ export default function App() {
               source.connect(processor);
               processor.connect(audioCtx.destination);
             } catch (err) {
-              console.error("Mic error:", err);
-              setErrorMsg("麥克風存取失敗，請確認權限");
+              console.error("Audio processing error:", err);
+              setErrorMsg("音訊處理發生錯誤");
               stopLiveSession();
             }
           },

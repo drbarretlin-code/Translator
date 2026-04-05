@@ -172,10 +172,6 @@ export default function App() {
   }, [transcripts]);
 
   useEffect(() => {
-    isRecordingRef.current = isRecording;
-  }, [isRecording]);
-
-  useEffect(() => {
     localLangRef.current = localLang;
   }, [localLang]);
 

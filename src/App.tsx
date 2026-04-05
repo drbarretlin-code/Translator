@@ -155,6 +155,11 @@ export default function App() {
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
   const [responsiveness, setResponsiveness] = useState(() => localStorage.getItem('responsiveness') || 'normal');
   
+  // 費用統計相關 state
+  const [sessionSeconds, setSessionSeconds] = useState(0);
+  const [isCostUnlocked, setIsCostUnlocked] = useState(false);
+  const [costPasswordInput, setCostPasswordInput] = useState('');
+  
   // 輸出模式控制
   const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(() => localStorage.getItem('audio_output') !== 'false');
   const [isTextOutputEnabled, setIsTextOutputEnabled] = useState(() => localStorage.getItem('text_output') !== 'false');
@@ -175,6 +180,33 @@ export default function App() {
   const transcriptsRef = useRef<Transcript[]>([]);
   const isAudioOutputEnabledRef = useRef<boolean>(isAudioOutputEnabled);
   const isTextOutputEnabledRef = useRef<boolean>(isTextOutputEnabled);
+
+  // 讀取與更新費用統計
+  useEffect(() => {
+    const stats = JSON.parse(localStorage.getItem('api_usage_stats') || '{}');
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    if (stats.month !== currentMonth) {
+      localStorage.setItem('api_usage_stats', JSON.stringify({ month: currentMonth, seconds: 0 }));
+      setSessionSeconds(0);
+    } else {
+      setSessionSeconds(stats.seconds || 0);
+    }
+  }, []);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setSessionSeconds(prev => {
+          const newVal = prev + 1;
+          const currentMonth = new Date().toISOString().slice(0, 7);
+          localStorage.setItem('api_usage_stats', JSON.stringify({ month: currentMonth, seconds: newVal }));
+          return newVal;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
 
   // 同步 state 到 ref，供事件回呼使用
   useEffect(() => {
@@ -640,6 +672,8 @@ export default function App() {
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
       const responsivenessInstructions = {
+        extreme: "Translate instantly word-by-word. Do not wait for phrases. Interrupt immediately. Speed is the absolute highest priority.",
+        hyper: "Translate instantly upon hearing 2-3 words. Extremely aggressive interruption. Prioritize speed over perfect grammar.",
         super_fast: "Be hyper-responsive. Translate instantly the moment you hear any complete phrase, do not wait for the user to finish their thought or sentence.",
         fast: "Be extremely responsive. Translate immediately even with short pauses.",
         normal: "Be balanced. Translate after natural pauses.",
@@ -1104,6 +1138,77 @@ Rules:
                     </div>
                   </div>
                 </div>
+
+                <hr className="border-slate-100 dark:border-slate-800" />
+
+                {/* API 費用與配額統計 (隱藏區塊) */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-red-500" /> API 費用與配額統計 (需解鎖)
+                  </h4>
+                  {!isCostUnlocked ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        placeholder="輸入解鎖密碼"
+                        value={costPasswordInput}
+                        onChange={(e) => setCostPasswordInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (costPasswordInput === '3102') setIsCostUnlocked(true);
+                            else alert('密碼錯誤');
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      />
+                      <button 
+                        onClick={() => {
+                          if (costPasswordInput === '3102') setIsCostUnlocked(true);
+                          else alert('密碼錯誤');
+                        }}
+                        className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-lg transition-colors"
+                      >
+                        解鎖
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl space-y-3 text-sm text-slate-700 dark:text-slate-300">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">本月累積連線時間：</span>
+                        <span className="font-mono bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-0.5 rounded">
+                          {Math.floor(sessionSeconds / 60)} 分 {sessionSeconds % 60} 秒
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">本月預估費用 (NTD)：</span>
+                        <span className="font-mono bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded">
+                          約 ${(sessionSeconds * 0.05).toFixed(2)} 元
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                        *此為根據連線時間之粗略估算 (約 0.05 NTD/秒)，實際費用請以 Google Cloud 帳單為準。
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+                        <a 
+                          href="https://console.cloud.google.com/billing" 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="flex-1 text-center px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 rounded-lg text-blue-600 dark:text-blue-400 font-medium transition-colors"
+                        >
+                          查看 Billing (帳單)
+                        </a>
+                        <a 
+                          href="https://console.cloud.google.com/iam-admin/quotas" 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="flex-1 text-center px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 hover:border-blue-400 dark:hover:border-blue-500 rounded-lg text-blue-600 dark:text-blue-400 font-medium transition-colors"
+                        >
+                          查看 Quotas (配額)
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="mt-8">
@@ -1200,7 +1305,7 @@ Rules:
           <div className="flex items-center justify-end gap-2 px-1">
             {/* 反應靈敏度控制 */}
             <div className="relative flex items-center gap-1.5">
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">AI反應</span>
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">反應靈敏度</span>
               <select
                 value={responsiveness || 'normal'}
                 onChange={(e) => {
@@ -1210,13 +1315,15 @@ Rules:
                 className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 title="反應靈敏度"
               >
+                <option value="extreme">光速</option>
+                <option value="hyper">極速</option>
                 <option value="super_fast">超靈敏</option>
                 <option value="fast">靈敏</option>
                 <option value="normal">標準</option>
                 <option value="patient">穩健</option>
               </select>
               <button
-                onClick={() => alert("使用說明：\n\n超靈敏 (Super Fast)：極度靈敏，聽到短語即刻翻譯，適合極短對答。\n靈敏 (Fast)：AI 會快速反應，適合短句對話。\n標準 (Normal)：平衡反應速度與準確度。\n穩健 (Patient)：AI 會等待更長的停頓，適合長句、會議記錄。")}
+                onClick={() => alert("使用說明：\n\n光速 (Extreme)：逐字即時翻譯，完全不等待，速度至上。\n極速 (Hyper)：聽到2-3個字即刻翻譯，極具侵略性的打斷。\n超靈敏 (Super Fast)：聽到短語即刻翻譯，適合極短對答。\n靈敏 (Fast)：AI 會快速反應，適合短句對話。\n標準 (Normal)：平衡反應速度與準確度。\n穩健 (Patient)：AI 會等待更長的停頓，適合長句、會議記錄。")}
                 className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors"
                 title="說明"
               >

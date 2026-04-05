@@ -750,11 +750,16 @@ export default function App() {
 
               if (textContent) {
                 setTranscripts(prev => {
-                  const last = prev[prev.length - 1];
-                  if (last) {
-                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: t.translated + textContent, isTranslating: false } : t);
+                  const newTranscripts = [...prev];
+                  const lastIndex = newTranscripts.length - 1;
+                  if (lastIndex >= 0) {
+                    newTranscripts[lastIndex] = { 
+                      ...newTranscripts[lastIndex], 
+                      translated: newTranscripts[lastIndex].translated + textContent,
+                      isTranslating: false 
+                    };
                   }
-                  return prev;
+                  return newTranscripts;
                 });
               }
             }
@@ -763,11 +768,16 @@ export default function App() {
             const outTranscript = message.serverContent?.outputTranscription;
             if (outTranscript?.text && isTextOutputEnabledRef.current) {
               setTranscripts(prev => {
-                const last = prev[prev.length - 1];
-                if (last) {
-                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: outTranscript.text, isTranslating: false } : t);
+                const newTranscripts = [...prev];
+                const lastIndex = newTranscripts.length - 1;
+                if (lastIndex >= 0) {
+                  newTranscripts[lastIndex] = { 
+                    ...newTranscripts[lastIndex], 
+                    translated: newTranscripts[lastIndex].translated + outTranscript.text,
+                    isTranslating: false 
+                  };
                 }
-                return prev;
+                return newTranscripts;
               });
             }
 

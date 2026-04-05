@@ -683,6 +683,9 @@ export default function App() {
       const systemInstruction = `You are a strict real-time bilingual translator.
 The two authorized languages are: ${localName} and ${clientName}.
 
+Responsiveness Instruction:
+${responsivenessInstructions[responsiveness as keyof typeof responsivenessInstructions] || responsivenessInstructions.normal}
+
 Rules:
 1. ONLY translate between ${localName} and ${clientName}.
 2. If the user speaks ${localName}, translate to ${clientName}.

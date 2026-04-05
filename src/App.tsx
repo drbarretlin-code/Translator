@@ -719,7 +719,6 @@ export default function App() {
             if (inTranscript?.text) {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
-                // 確保是追加文字，而不是替換
                 if (last && !last.isFinal) {
                   return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: inTranscript.text } : t);
                 } else {
@@ -753,7 +752,6 @@ export default function App() {
                 setTranscripts(prev => {
                   const last = prev[prev.length - 1];
                   if (last) {
-                    // 確保使用函數式更新來追加內容
                     return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: t.translated + textContent, isTranslating: false } : t);
                   }
                   return prev;
@@ -761,19 +759,19 @@ export default function App() {
               }
             }
 
-            // 3. 處理模型的語音轉文字 (outputTranscription - 作為備用)
+            // 3. 處理模型的語音轉文字 (outputTranscription)
             const outTranscript = message.serverContent?.outputTranscription;
             if (outTranscript?.text && isTextOutputEnabledRef.current) {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 if (last) {
-                  // 這裡改為追加，防止覆蓋
-                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: t.translated + outTranscript.text, isTranslating: false } : t);
+                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: outTranscript.text, isTranslating: false } : t);
                 }
                 return prev;
               });
             }
 
+            // 4. 處理對話完成訊號
             if (message.serverContent?.turnComplete) {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
@@ -784,8 +782,17 @@ export default function App() {
               });
             }
 
+            // 5. 處理中斷訊號
             if (message.serverContent?.interrupted) {
               nextPlayTimeRef.current = 0;
+              // 當被中斷時，標記上一條對話為已完成，防止後續內容錯誤追加
+              setTranscripts(prev => {
+                const last = prev[prev.length - 1];
+                if (last && !last.isFinal) {
+                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, isFinal: true, isTranslating: false } : t);
+                }
+                return prev;
+              });
             }
           },
           onclose: () => {

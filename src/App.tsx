@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { cn } from './lib/utils';
 
@@ -151,6 +151,10 @@ export default function App() {
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
   
+  // 輸出模式控制
+  const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(() => localStorage.getItem('audio_output') !== 'false');
+  const [isTextOutputEnabled, setIsTextOutputEnabled] = useState(() => localStorage.getItem('text_output') !== 'false');
+  
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   
   // Live API Refs
@@ -165,11 +169,23 @@ export default function App() {
   const localLangRef = useRef<string>(localLang);
   const clientLangRef = useRef<string>(clientLang);
   const transcriptsRef = useRef<Transcript[]>([]);
+  const isAudioOutputEnabledRef = useRef<boolean>(isAudioOutputEnabled);
+  const isTextOutputEnabledRef = useRef<boolean>(isTextOutputEnabled);
 
   // 同步 state 到 ref，供事件回呼使用
   useEffect(() => {
     transcriptsRef.current = transcripts;
   }, [transcripts]);
+
+  useEffect(() => {
+    isAudioOutputEnabledRef.current = isAudioOutputEnabled;
+    localStorage.setItem('audio_output', isAudioOutputEnabled.toString());
+  }, [isAudioOutputEnabled]);
+
+  useEffect(() => {
+    isTextOutputEnabledRef.current = isTextOutputEnabled;
+    localStorage.setItem('text_output', isTextOutputEnabled.toString());
+  }, [isTextOutputEnabled]);
 
   useEffect(() => {
     localLangRef.current = localLang;
@@ -493,14 +509,14 @@ export default function App() {
             if (parts) {
               let textContent = "";
               for (const part of parts) {
-                if (part.text) {
+                if (part.text && isTextOutputEnabledRef.current) {
                   textContent += part.text;
                 }
-                if (part.inlineData?.data) {
+                if (part.inlineData?.data && isAudioOutputEnabledRef.current) {
                   playAudioChunk(part.inlineData.data);
                 }
               }
-              if (textContent) {
+              if (textContent && isTextOutputEnabledRef.current) {
                 setTranscripts(prev => {
                   const last = prev[prev.length - 1];
                   if (last && !last.isFinal) {
@@ -520,7 +536,7 @@ export default function App() {
               }
             }
 
-            if (message.serverContent?.turnComplete) {
+            if (message.serverContent?.turnComplete && isTextOutputEnabledRef.current) {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 if (last && !last.isFinal) {
@@ -853,72 +869,110 @@ export default function App() {
       )}
 
         {/* 控制面板：互譯功能選擇與錄音按鈕 */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 sm:p-3 flex flex-row items-center justify-between flex-shrink-0 gap-2 transition-colors duration-300">
-          
-          {/* 左側國旗 (Local) */}
-          <div className="flex items-center justify-center flex-shrink-0">
-            <CountryFlag langId={localLang} className="w-8 h-5 sm:w-10 sm:h-7 rounded shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
-          </div>
-
-          <div className="flex flex-row items-center gap-2 w-full max-w-2xl mx-auto">
-            <div className="flex-1">
-              <div className="relative">
-                <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                <select 
-                  value={localLang}
-                  onChange={(e) => setLocalLang(e.target.value)}
-                  disabled={isRecording}
-                  className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
-                >
-                  {LANGUAGES.map(lang => (
-                    <option key={`local-${lang.id}`} value={lang.id}>{lang.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center">
-              <ArrowRightLeft className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-            </div>
-
-            <div className="flex-1">
-              <div className="relative">
-                <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                <select 
-                  value={clientLang}
-                  onChange={(e) => setClientLang(e.target.value)}
-                  disabled={isRecording}
-                  className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
-                >
-                  {LANGUAGES.map(lang => (
-                    <option key={`client-${lang.id}`} value={lang.id}>{lang.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+        <div className="flex flex-col gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-2 sm:p-3 flex flex-row items-center justify-between flex-shrink-0 gap-2 transition-colors duration-300">
             
-            <div className="flex-shrink-0">
-              <button
-                onClick={toggleRecording}
-                className={cn(
-                  "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all duration-300 shadow-sm h-[32px]",
-                  isRecording
-                    ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 animate-pulse" 
-                    : "bg-blue-600 text-white hover:bg-blue-700 border border-transparent"
-                )}
-              >
-                {isRecording ? (
-                  <><Square className="w-3.5 h-3.5 fill-current" /> <span className="text-xs">停止</span></>
-                ) : (
-                  <><Mic className="w-3.5 h-3.5" /> <span className="text-xs">Speaking</span></>
-                )}
-              </button>
+            {/* 左側國旗 (Local) */}
+            <div className="flex items-center justify-center flex-shrink-0">
+              <CountryFlag langId={localLang} className="w-8 h-5 sm:w-10 sm:h-7 rounded shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
+            </div>
+
+            <div className="flex flex-row items-center gap-2 w-full max-w-2xl mx-auto">
+              <div className="flex-1">
+                <div className="relative">
+                  <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                  <select 
+                    value={localLang}
+                    onChange={(e) => setLocalLang(e.target.value)}
+                    disabled={isRecording}
+                    className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
+                  >
+                    {LANGUAGES.map(lang => (
+                      <option key={`local-${lang.id}`} value={lang.id}>{lang.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center">
+                <ArrowRightLeft className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+              </div>
+
+              <div className="flex-1">
+                <div className="relative">
+                  <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                  <select 
+                    value={clientLang}
+                    onChange={(e) => setClientLang(e.target.value)}
+                    disabled={isRecording}
+                    className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
+                  >
+                    {LANGUAGES.map(lang => (
+                      <option key={`client-${lang.id}`} value={lang.id}>{lang.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex-shrink-0">
+                <button
+                  onClick={toggleRecording}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all duration-300 shadow-sm h-[32px]",
+                    isRecording
+                      ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 animate-pulse" 
+                      : "bg-blue-600 text-white hover:bg-blue-700 border border-transparent"
+                  )}
+                >
+                  {isRecording ? (
+                    <><Square className="w-3.5 h-3.5 fill-current" /> <span className="text-xs">停止</span></>
+                  ) : (
+                    <><Mic className="w-3.5 h-3.5" /> <span className="text-xs">Speaking</span></>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 右側國旗 (Client) */}
+            <div className="flex items-center justify-center flex-shrink-0">
+              <CountryFlag langId={clientLang} className="w-8 h-5 sm:w-10 sm:h-7 rounded shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
             </div>
           </div>
 
-          {/* 右側國旗 (Client) */}
-          <div className="flex items-center justify-center flex-shrink-0">
-            <CountryFlag langId={clientLang} className="w-8 h-5 sm:w-10 sm:h-7 rounded shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
+          {/* 輸出模式控制 */}
+          <div className="flex items-center justify-end gap-2 px-1">
+            <button
+              onClick={() => {
+                if (isAudioOutputEnabled && !isTextOutputEnabled) return; // 防止兩個都關閉
+                setIsAudioOutputEnabled(!isAudioOutputEnabled);
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 border",
+                isAudioOutputEnabled 
+                  ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30" 
+                  : "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100"
+              )}
+              title="語音輸出"
+            >
+              {isAudioOutputEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+              語音輸出
+            </button>
+            <button
+              onClick={() => {
+                if (isTextOutputEnabled && !isAudioOutputEnabled) return; // 防止兩個都關閉
+                setIsTextOutputEnabled(!isTextOutputEnabled);
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 border",
+                isTextOutputEnabled 
+                  ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30" 
+                  : "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100"
+              )}
+              title="文字紀錄"
+            >
+              {isTextOutputEnabled ? <MessageSquare className="w-3.5 h-3.5" /> : <MessageSquareOff className="w-3.5 h-3.5" />}
+              文字紀錄
+            </button>
           </div>
         </div>
 

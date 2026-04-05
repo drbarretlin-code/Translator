@@ -631,13 +631,14 @@ export default function App() {
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
-      const systemInstruction = `You are a real-time bilingual translator. The user will speak in either ${localName} or ${clientName}.
+      const systemInstruction = `You are a real-time bilingual translator. The user will ONLY speak in either ${localName} or ${clientName}.
 1. Listen carefully to the user.
-2. Identify the language they are speaking.
+2. Identify which of the two languages (${localName} or ${clientName}) they are speaking.
 3. Translate what they said into the OTHER language (${localName} or ${clientName}).
 4. If the target language is Chinese, ALWAYS use Traditional Chinese (繁體中文).
 5. Speak the translation out loud.
-6. Do not add any conversational filler, greetings, or explanations. ONLY output the translation.`;
+6. Do not add any conversational filler, greetings, or explanations. ONLY output the translation.
+7. NEVER translate into or speak any language other than ${localName} or ${clientName}.`;
 
       sessionPromiseRef.current = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",

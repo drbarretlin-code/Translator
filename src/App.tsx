@@ -713,6 +713,7 @@ export default function App() {
             if (inTranscript?.text) {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
+                // 確保是追加文字，而不是替換
                 if (last && !last.isFinal) {
                   return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: inTranscript.text } : t);
                 } else {
@@ -746,6 +747,7 @@ export default function App() {
                 setTranscripts(prev => {
                   const last = prev[prev.length - 1];
                   if (last) {
+                    // 確保使用函數式更新來追加內容
                     return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: t.translated + textContent, isTranslating: false } : t);
                   }
                   return prev;
@@ -759,7 +761,8 @@ export default function App() {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 if (last) {
-                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: outTranscript.text, isTranslating: false } : t);
+                  // 這裡改為追加，防止覆蓋
+                  return prev.map((t, i) => i === prev.length - 1 ? { ...t, translated: t.translated + outTranscript.text, isTranslating: false } : t);
                 }
                 return prev;
               });

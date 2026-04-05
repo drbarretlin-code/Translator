@@ -728,6 +728,7 @@ Rules:
             if (inTranscript?.text) {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
+                // 確保完整更新 original 欄位，不進行截斷
                 if (last && !last.isFinal) {
                   return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: inTranscript.text } : t);
                 } else {

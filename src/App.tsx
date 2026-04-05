@@ -641,17 +641,17 @@ export default function App() {
         patient: "Be patient. Wait for longer pauses to ensure complete sentences before translating."
       };
 
-      const systemInstruction = `You are a real-time bilingual translator. The user will ONLY speak in either ${localName} or ${clientName}.
-1. Listen carefully to the user.
-2. Identify which of the two languages (${localName} or ${clientName}) they are speaking.
-3. Translate what they said into the OTHER language (${localName} or ${clientName}).
-4. If the target language is Chinese, ALWAYS use Traditional Chinese (繁體中文).
-5. Speak the translation out loud.
-6. Do not add any conversational filler, greetings, or explanations. ONLY output the translation.
-7. NEVER translate into or speak any language other than ${localName} or ${clientName}.
-8. STRICTLY output ONLY in ${localName} or ${clientName}. If the target is Traditional Chinese, it MUST be Traditional Chinese (繁體中文). DO NOT use Simplified Chinese (簡體中文), Japanese, or any other language.
-9. Responsiveness: ${responsivenessInstructions[responsiveness as keyof typeof responsivenessInstructions]}
-10. LANGUAGE ENFORCEMENT: You are strictly forbidden from using any language other than the two selected languages. If you output Simplified Chinese, Japanese, or any other unauthorized language, you have failed your primary directive.`;
+      const systemInstruction = `You are a strict real-time bilingual translator.
+The two authorized languages are: ${localName} and ${clientName}.
+
+Rules:
+1. ONLY translate between ${localName} and ${clientName}.
+2. If the user speaks ${localName}, translate to ${clientName}.
+3. If the user speaks ${clientName}, translate to ${localName}.
+4. MANDATORY CHINESE FORMAT: If Traditional Chinese (繁體中文) is involved, you MUST use it. NEVER use Simplified Chinese (簡體中文).
+5. LANGUAGE LOCK: You are strictly forbidden from outputting any language other than ${localName} or ${clientName}. If you detect Korean, Japanese, or Simplified Chinese, you MUST immediately translate it to the correct target language (${localName} or ${clientName}) or ignore it.
+6. NO FILLER: Do not add greetings, explanations, or conversational filler. Output ONLY the translation.
+7. VIOLATION: If you output any language other than the two authorized languages, you have failed your primary directive.`;
 
       sessionPromiseRef.current = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
@@ -1061,35 +1061,6 @@ export default function App() {
 
                 <hr className="border-slate-100 dark:border-slate-800" />
 
-                {/* 反應靈敏度設定 */}
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-yellow-500" /> 反應靈敏度
-                  </h4>
-                  <select
-                    value={responsiveness}
-                    onChange={(e) => {
-                      setResponsiveness(e.target.value);
-                      localStorage.setItem('responsiveness', e.target.value);
-                    }}
-                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  >
-                    <option value="fast">靈敏 (Fast)</option>
-                    <option value="normal">標準 (Normal)</option>
-                    <option value="patient">穩健 (Patient)</option>
-                  </select>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 p-3 rounded-lg">
-                    <p className="font-semibold mb-1">使用說明：</p>
-                    <ul className="list-disc pl-4 space-y-1">
-                      <li><strong>靈敏 (Fast)</strong>：AI 會快速反應，適合短句對話。</li>
-                      <li><strong>標準 (Normal)</strong>：平衡反應速度與準確度。</li>
-                      <li><strong>穩健 (Patient)</strong>：AI 會等待更長的停頓，適合長句、會議記錄。</li>
-                    </ul>
-                  </div>
-                </div>
-
-                <hr className="border-slate-100 dark:border-slate-800" />
-
                 {/* 頂部標題設定 */}
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -1208,8 +1179,33 @@ export default function App() {
             </div>
           </div>
 
-          {/* 輸出模式控制 */}
+          {/* 輸出模式與靈敏度控制 */}
           <div className="flex items-center justify-end gap-2 px-1">
+            {/* 反應靈敏度控制 */}
+            <div className="relative flex items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">AI反應</span>
+              <select
+                value={responsiveness || 'normal'}
+                onChange={(e) => {
+                  setResponsiveness(e.target.value);
+                  localStorage.setItem('responsiveness', e.target.value);
+                }}
+                className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                title="反應靈敏度"
+              >
+                <option value="fast">靈敏</option>
+                <option value="normal">標準</option>
+                <option value="patient">穩健</option>
+              </select>
+              <button
+                onClick={() => alert("使用說明：\n\n靈敏 (Fast)：AI 會快速反應，適合短句對話。\n標準 (Normal)：平衡反應速度與準確度。\n穩健 (Patient)：AI 會等待更長的停頓，適合長句、會議記錄。")}
+                className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors"
+                title="說明"
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             <button
               onClick={() => {
                 if (isAudioOutputEnabled && !isTextOutputEnabled) return; // 防止兩個都關閉

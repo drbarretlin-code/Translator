@@ -2069,25 +2069,34 @@ Rules:
                 </div>
                 <p className="text-sm">點擊上方按鈕開始對話</p>
               </div>
+// 獨立的 TranscriptItem 元件，使用 React.memo 優化渲染
+const TranscriptItem = React.memo(({ t }: { t: any }) => (
+  <div 
+    key={t.id} 
+    className={cn(
+      "flex flex-col gap-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3 transition-all duration-300 shadow-sm",
+      !t.isFinal && "opacity-60"
+    )}
+  >
+    <div className="flex flex-col gap-1.5">
+      <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
+        {t.speakerName && <span className="text-xs font-bold text-blue-600 dark:text-blue-400 mr-2">{t.speakerName}</span>}
+        {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
+        {t.original}
+      </div>
+    </div>
+  </div>
+));
+
+// 在 App 元件內渲染的地方
             ) : (
-              <div className="grid grid-cols-1 gap-2 items-start content-start">
-                {[...transcripts].sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0)).map((t) => {
-                  return (
-                    <div 
-                      key={t.id} 
-                      className={cn(
-                        "flex flex-col gap-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3 transition-all duration-300 shadow-sm",
-                        !t.isFinal && "opacity-60"
-                      )}
-                    >
-                      {/* 原文 (Local/Client 之一) */}
-                      <div className="flex flex-col gap-1.5">
-                        <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
-                          {t.speakerName && <span className="text-xs font-bold text-blue-600 dark:text-blue-400 mr-2">{t.speakerName}</span>}
-                          {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
-                          {t.original}
-                        </div>
-                      </div>
+              <div className="flex flex-col gap-2 overflow-anchor-auto">
+                {[...transcripts]
+                  .sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0))
+                  .map((t) => (
+                    <TranscriptItem key={t.id} t={t} />
+                  ))}
+              </div>
                       
                       {/* 分隔線 */}
                       <div className="h-px w-full bg-slate-200 dark:bg-slate-700"></div>

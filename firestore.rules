@@ -74,10 +74,13 @@ service cloud.firestore {
 
     function isValidRoom(data) {
       return hasRequiredFields(['creatorId', 'createdAt']) &&
-             hasOnlyAllowedFields(['creatorId', 'createdAt', 'apiKey', 'isClosed']) &&
+             hasOnlyAllowedFields(['creatorId', 'createdAt', 'apiKey', 'apiKeyType', 'projectName', 'isSpeakingEnabled', 'isClosed']) &&
              data.creatorId is string && data.creatorId.size() > 0 && data.creatorId.size() < 100 &&
              data.createdAt is timestamp &&
              (!('apiKey' in data) || (data.apiKey is string && data.apiKey.size() < 200)) &&
+             (!('apiKeyType' in data) || (data.apiKeyType is string && data.apiKeyType.size() < 50)) &&
+             (!('projectName' in data) || (data.projectName is string && data.projectName.size() < 100)) &&
+             (!('isSpeakingEnabled' in data) || data.isSpeakingEnabled is bool) &&
              (!('isClosed' in data) || data.isClosed is bool);
     }
 

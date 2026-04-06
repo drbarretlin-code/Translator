@@ -2157,7 +2157,7 @@ Rules:
                       if (t.timestamp?.toMillis) return t.timestamp.toMillis();
                       return 0;
                     };
-                    return getTime(b) - getTime(a);
+                    return getTime(a) - getTime(b); // 改為舊到新排序
                   })
                   .map((t) => (
                     <TranscriptItem key={t.id} t={t} />

@@ -2149,7 +2149,7 @@ Rules:
                 <p className="text-sm">點擊上方按鈕開始對話</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-2 [overflow-anchor:none]">
+              <div className="flex flex-col gap-2">
                 {[...transcripts]
                   .sort((a, b) => {
                     const getTime = (t: any) => {

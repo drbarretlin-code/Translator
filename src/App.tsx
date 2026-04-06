@@ -185,6 +185,7 @@ export default function App() {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const uiLang = React.useMemo(() => getDefaultLang(), []);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -285,6 +286,20 @@ export default function App() {
     }
     return () => clearTimeout(timeout);
   }, [showTimePrompt]);
+
+  // Handle page unload for room creator
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
+        // Use sendBeacon or a synchronous-looking call to try to update the document before the page unloads
+        // Note: updateDoc is async, so it might not complete, but it's the best effort.
+        updateDoc(doc(db, 'rooms', roomId), { isClosed: true }).catch(console.error);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [roomId, user, roomCreatorId]);
 
   // 同步 state 到 ref，供事件回呼使用
   useEffect(() => {
@@ -389,12 +404,31 @@ export default function App() {
       const roomRef = doc(db, 'rooms', roomId);
       unsubRoom = onSnapshot(roomRef, (docSnap) => {
         if (docSnap.exists()) {
-          setRoomCreatorId(docSnap.data().creatorId);
+          const data = docSnap.data();
+          setRoomCreatorId(data.creatorId);
+          if (data.apiKey) {
+            setRoomApiKey(data.apiKey);
+          }
+          if (data.isClosed) {
+            setCustomAlert({ 
+              message: "房間已由建立者關閉，連線已失效。", 
+              type: 'alert',
+              onConfirm: () => {
+                window.location.href = '/';
+              }
+            });
+            stopLiveSession();
+          }
         } else {
           // Room deleted or doesn't exist
-          setRoomId(null);
-          setShowRoomDialog(true);
-          window.history.replaceState({}, '', window.location.pathname);
+          setCustomAlert({ 
+            message: "房間已關閉或不存在", 
+            type: 'alert',
+            onConfirm: () => {
+              window.location.href = '/';
+            }
+          });
+          stopLiveSession();
         }
       });
 
@@ -442,11 +476,20 @@ export default function App() {
       setCustomAlert({ message: "系統警告：目前線上人數已達 100 人上限，無法建立新連線。請稍後再試。", type: 'alert' });
       return;
     }
+    
+    if (!userApiKey) {
+      setCustomAlert({ message: "請先在管理者設定中配置您的 Gemini API 金鑰，再建立房間。", type: 'alert' });
+      setShowAdminSettings(true);
+      return;
+    }
+
     try {
       const newRoomId = Math.random().toString(36).substring(2, 9);
       await setDoc(doc(db, 'rooms', newRoomId), {
         creatorId: currentUser.uid,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        apiKey: userApiKey,
+        isClosed: false
       });
       setRoomId(newRoomId);
       setShowRoomDialog(false);
@@ -916,9 +959,17 @@ export default function App() {
     nextPlayTimeRef.current += audioBuffer.duration;
   };
 
-  const stopLiveSession = () => {
+  const stopLiveSession = async () => {
     isLiveRef.current = false;
     setIsRecording(false);
+
+    if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
+      try {
+        await updateDoc(doc(db, 'rooms', roomId), { isClosed: true });
+      } catch (e) {
+        console.error("Failed to close room", e);
+      }
+    }
 
     if (processorRef.current) {
       processorRef.current.disconnect();
@@ -944,9 +995,15 @@ export default function App() {
   };
 
   const startLiveSession = async () => {
-    if (!userApiKey) {
-      setErrorMsg('請先在管理者設定中配置您的 Gemini API 金鑰。');
-      setShowAdminSettings(true);
+    const effectiveApiKey = (user && roomCreatorId && user.uid === roomCreatorId) ? userApiKey : (roomApiKey || userApiKey);
+    
+    if (!effectiveApiKey) {
+      if (user && roomCreatorId && user.uid === roomCreatorId) {
+        setErrorMsg('請先在管理者設定中配置您的 Gemini API 金鑰。');
+        setShowAdminSettings(true);
+      } else {
+        setErrorMsg('無法取得房間的 API 金鑰，請聯繫建立者。');
+      }
       return;
     }
 
@@ -973,7 +1030,7 @@ export default function App() {
       });
       mediaStreamRef.current = stream;
 
-      const ai = new GoogleGenAI({ apiKey: userApiKey });
+      const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
 
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
@@ -1412,13 +1469,15 @@ Rules:
             >
               {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-slate-600" />}
             </button>
-            <button 
-              onClick={() => setShowAdminSettings(true)}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-              title={getUiText('adminSettings')}
-            >
-              <Lock className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-            </button>
+            {(!roomId || (user && roomCreatorId && user.uid === roomCreatorId)) && (
+              <button 
+                onClick={() => setShowAdminSettings(true)}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                title={getUiText('adminSettings')}
+              >
+                <Lock className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              </button>
+            )}
             <span className="hidden sm:flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-500"></span>
               {getUiText('systemReady')}
@@ -1846,29 +1905,33 @@ Rules:
               )}
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleShare}
-                disabled={transcripts.length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {shareSuccess ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Share2 className="w-3.5 h-3.5" />}
-                {getUiText('share')}
-              </button>
-              <button
-                onClick={() => {
-                  if (roomId) {
-                    handleClearRoomChat();
-                  } else {
-                    setShowClearConfirm(true);
-                  }
-                }}
-                disabled={transcripts.length === 0 || (!!roomId && (!user || roomCreatorId !== user?.uid))}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title={roomId && (!user || roomCreatorId !== user?.uid) ? "只有房間建立者可以清除紀錄" : ""}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                {getUiText('clear')}
-              </button>
+              {(!roomId || (user && roomCreatorId && user.uid === roomCreatorId)) && (
+                <>
+                  <button
+                    onClick={handleShare}
+                    disabled={transcripts.length === 0}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {shareSuccess ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Share2 className="w-3.5 h-3.5" />}
+                    {getUiText('share')}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (roomId) {
+                        handleClearRoomChat();
+                      } else {
+                        setShowClearConfirm(true);
+                      }
+                    }}
+                    disabled={transcripts.length === 0 || (!!roomId && (!user || roomCreatorId !== user?.uid))}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={roomId && (!user || roomCreatorId !== user?.uid) ? "只有房間建立者可以清除紀錄" : ""}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {getUiText('clear')}
+                  </button>
+                </>
+              )}
             </div>
           </div>
           

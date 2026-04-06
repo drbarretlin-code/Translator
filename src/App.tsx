@@ -1322,7 +1322,6 @@ Rules:
                   textContent += convertToTwIfNeeded(part.text);
                 }
                 if (part.inlineData?.data && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
-                  // 使用 isRecording 作為指標，判斷是否為本地麥克風開啟時的語音
                   const isSelf = isRecording; 
                   if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
                     playAudioChunk(part.inlineData.data);
@@ -1332,16 +1331,21 @@ Rules:
 
               if (textContent) {
                 setTranscripts(prev => {
-                  const newTranscripts = [...prev];
-                  const lastIndex = newTranscripts.length - 1;
-                  if (lastIndex >= 0) {
-                    newTranscripts[lastIndex] = { 
-                      ...newTranscripts[lastIndex], 
-                      translated: newTranscripts[lastIndex].translated + textContent,
-                      isTranslating: false 
-                    };
+                  try {
+                    const newTranscripts = [...prev];
+                    const lastIndex = newTranscripts.length - 1;
+                    if (lastIndex >= 0) {
+                      newTranscripts[lastIndex] = { 
+                        ...newTranscripts[lastIndex], 
+                        translated: (newTranscripts[lastIndex].translated || "") + textContent,
+                        isTranslating: false 
+                      };
+                    }
+                    return newTranscripts;
+                  } catch (e) {
+                    console.error("Error updating transcripts:", e);
+                    return prev;
                   }
-                  return newTranscripts;
                 });
               }
             }

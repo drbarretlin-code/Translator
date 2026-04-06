@@ -123,8 +123,8 @@ service cloud.firestore {
 
     match /rooms/{roomId}/transcripts/{transcriptId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidTranscript(request.resource.data) && request.resource.data.speakerId == request.auth.uid;
-      allow update: if isAuthenticated() && isValidTranscript(request.resource.data) && resource.data.speakerId == request.auth.uid && request.resource.data.speakerId == resource.data.speakerId && request.resource.data.timestamp == resource.data.timestamp;
+      allow create: if isAuthenticated() && isValidTranscript(request.resource.data) && (request.resource.data.speakerId == request.auth.uid || get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid);
+      allow update: if isAuthenticated() && isValidTranscript(request.resource.data) && (resource.data.speakerId == request.auth.uid || get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid) && request.resource.data.speakerId == resource.data.speakerId && request.resource.data.timestamp == resource.data.timestamp;
       // Allow the room creator OR the transcript speaker to delete the transcript
       allow delete: if isAuthenticated() && (
         resource.data.speakerId == request.auth.uid ||

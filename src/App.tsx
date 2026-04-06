@@ -1066,17 +1066,29 @@ export default function App() {
       audioContextRef.current = audioCtx;
       await audioCtx.resume();
 
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true, // 強化降噪
-          autoGainControl: true,  // 強化自動增益
-          // @ts-ignore - 針對部分瀏覽器支援的進階設定
-          latency: 0,
-          sampleRate: 16000,
-          channelCount: 1,
-        } 
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true, // 強化降噪
+            autoGainControl: true,  // 強化自動增益
+            // @ts-ignore - 針對部分瀏覽器支援的進階設定
+            latency: 0,
+            sampleRate: 16000,
+            channelCount: 1,
+          } 
+        });
+      } catch (err: any) {
+        console.error("麥克風存取錯誤:", err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          throw new Error("麥克風權限被拒絕。請點擊瀏覽器網址列旁的鎖頭圖示，允許此網站存取您的麥克風。");
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          throw new Error("找不到麥克風裝置，請確認您的設備已連接麥克風。");
+        } else {
+          throw new Error("無法存取麥克風：" + err.message);
+        }
+      }
       mediaStreamRef.current = stream;
 
       const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
@@ -1112,31 +1124,20 @@ Rules:
       sessionPromiseRef.current = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         callbacks: {
-          onopen: () => {
+          onopen: async () => {
             try {
               if (!audioContextRef.current || !mediaStreamRef.current) return;
               
               const audioCtx = audioContextRef.current;
               const stream = mediaStreamRef.current;
 
+              await audioCtx.audioWorklet.addModule('/audio-processor.js');
               const source = audioCtx.createMediaStreamSource(stream);
+              const workletNode = new AudioWorkletNode(audioCtx, 'audio-processor');
               
-              // 建立增益節點 (GainNode) 來放大音量，強化收音效果
-              const gainNode = audioCtx.createGain();
-              // 將增益調回正常值 1.0，避免麥克風收到喇叭播放的 AI 語音造成重複轉譯 (回音問題)
-              gainNode.gain.value = 1.0; 
-              
-              const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-              processorRef.current = processor;
-
-              // 連接：麥克風 -> 增益節點 -> 處理節點 -> 輸出 (虛擬)
-              source.connect(gainNode);
-              gainNode.connect(processor);
-              processor.connect(audioCtx.destination);
-
-              processor.onaudioprocess = (e) => {
+              workletNode.port.onmessage = (e) => {
                 if (!isLiveRef.current) return;
-                const inputData = e.inputBuffer.getChannelData(0);
+                const inputData = e.data;
                 const inputSampleRate = audioCtx.sampleRate;
                 const targetSampleRate = 16000;
                 
@@ -1172,6 +1173,10 @@ Rules:
                   });
                 });
               };
+
+              source.connect(workletNode);
+              workletNode.connect(audioCtx.destination);
+              processorRef.current = workletNode;
             } catch (err) {
               console.error("Audio processing error:", err);
               setErrorMsg("音訊處理發生錯誤");
@@ -1179,6 +1184,7 @@ Rules:
             }
           },
           onmessage: (message: any) => {
+            console.log("Received message:", message);
             // 轉換文字為繁體中文 (如果設定包含 zh-TW)
             const convertToTwIfNeeded = (text: string) => {
               if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
@@ -1311,6 +1317,11 @@ Rules:
             // 5. 處理中斷訊號
             if (message.serverContent?.interrupted) {
               nextPlayTimeRef.current = 0;
+              // 立即停止當前播放的音訊
+              if (audioContextRef.current) {
+                audioContextRef.current.close();
+                audioContextRef.current = null;
+              }
               // 當被中斷時，標記上一條對話為已完成，防止後續內容錯誤追加
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
@@ -1335,7 +1346,7 @@ Rules:
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } }
           },
-          systemInstruction: systemInstruction,
+          systemInstruction: `${systemInstruction}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。請確保翻譯結果與使用者的語音輸入保持同步且完整。`,
           outputAudioTranscription: {},
           inputAudioTranscription: {},
         }
@@ -1901,7 +1912,14 @@ Rules:
               </div>
               
               {user?.uid === roomCreatorId && (
-                <div className="flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  {/* 狀態指示器 */}
+                  {isRecording && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg animate-pulse">
+                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Live</span>
+                    </div>
+                  )}
                   <button
                     onClick={toggleRecording}
                     className={cn(

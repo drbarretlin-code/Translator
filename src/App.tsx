@@ -795,7 +795,7 @@ Rules:
               if (!hasChinese && !hasJapanese) {
                 filtered = filtered.replace(/[\u4E00-\u9FFF]/g, '');
               }
-              return filtered.trim();
+              return filtered;
             };
 
             // 1. 處理使用者的語音轉文字 (inputTranscription)
@@ -884,8 +884,9 @@ Rules:
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 if (last && !last.isFinal) {
-                  // 如果 AI 完全沒有輸出翻譯，代表判定為雜音或非指定語言，直接移除該筆紀錄
-                  if (!last.translated.trim()) {
+                  // 修正：只有當 AI 完全沒有輸出翻譯，且原始語音也是空的或佔位符時，才移除該筆紀錄
+                  // 避免因為 turnComplete 比翻譯結果早到，而誤刪了使用者剛講完的有效語音
+                  if (!last.translated.trim() && (!last.original.trim() || last.original === "(...)")) {
                     return prev.slice(0, -1);
                   }
                   return prev.map((t, i) => i === prev.length - 1 ? { ...t, isFinal: true, isTranslating: false } : t);

@@ -7,6 +7,52 @@ import { db, auth, signInWithGoogle, signInAnon } from './firebase';
 import { collection, doc, setDoc, onSnapshot, query, orderBy, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
+// 獨立的 TranscriptItem 元件，使用 React.memo 優化渲染
+const TranscriptItem = React.memo(({ t }: { t: any }) => (
+  <div 
+    key={t.id} 
+    className={cn(
+      "flex flex-col gap-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3 transition-all duration-300 shadow-sm",
+      !t.isFinal && "opacity-60"
+    )}
+  >
+    {/* 原文 */}
+    <div className="flex flex-col gap-1.5">
+      <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
+        {t.speakerName && <span className="text-xs font-bold text-blue-600 dark:text-blue-400 mr-2">{t.speakerName}</span>}
+        {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
+        {t.original}
+      </div>
+    </div>
+    
+    {/* 分隔線 */}
+    <div className="h-px w-full bg-slate-200 dark:bg-slate-700"></div>
+    
+    {/* 翻譯文 */}
+    <div className="flex flex-col gap-1.5">
+      {t.error ? (
+        <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-[15px]">
+          <AlertCircle className="w-4 h-4" />
+          <span>{t.error}</span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {t.translated && (
+            <div className="text-[15px] leading-tight text-blue-700 dark:text-blue-400 font-medium">
+              {t.translated}
+            </div>
+          )}
+          {!t.isFinal && (
+            <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-sm">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  </div>
+));
+
 // 初始化簡轉繁轉換器
 const s2tConverter = OpenCC.Converter({ from: 'cn', to: 'tw' });
 
@@ -2069,26 +2115,6 @@ Rules:
                 </div>
                 <p className="text-sm">點擊上方按鈕開始對話</p>
               </div>
-// 獨立的 TranscriptItem 元件，使用 React.memo 優化渲染
-const TranscriptItem = React.memo(({ t }: { t: any }) => (
-  <div 
-    key={t.id} 
-    className={cn(
-      "flex flex-col gap-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3 transition-all duration-300 shadow-sm",
-      !t.isFinal && "opacity-60"
-    )}
-  >
-    <div className="flex flex-col gap-1.5">
-      <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
-        {t.speakerName && <span className="text-xs font-bold text-blue-600 dark:text-blue-400 mr-2">{t.speakerName}</span>}
-        {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
-        {t.original}
-      </div>
-    </div>
-  </div>
-));
-
-// 在 App 元件內渲染的地方
             ) : (
               <div className="flex flex-col gap-2 overflow-anchor-auto">
                 {[...transcripts]
@@ -2096,37 +2122,6 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
                   .map((t) => (
                     <TranscriptItem key={t.id} t={t} />
                   ))}
-              </div>
-                      
-                      {/* 分隔線 */}
-                      <div className="h-px w-full bg-slate-200 dark:bg-slate-700"></div>
-                      
-                      {/* 翻譯文 (對應的另一端) */}
-                      <div className="flex flex-col gap-1.5">
-                        {t.error ? (
-                          <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-[15px]">
-                            <AlertCircle className="w-4 h-4" />
-                            <span>{t.error}</span>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-2">
-                            {t.translated && (
-                              <div className="text-[15px] leading-tight text-blue-700 dark:text-blue-400 font-medium">
-                                {t.translated}
-                              </div>
-                            )}
-                            {!t.isFinal && (
-                              <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-sm">
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                <span>AI 聆聽與翻譯中...</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
                 <div ref={transcriptEndRef} className="col-span-full" />
               </div>
             )}

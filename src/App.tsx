@@ -34,6 +34,7 @@ interface Transcript {
   targetLang: string;
   detectedLang?: string;
   error?: string;
+  speakerName?: string;
 }
 
 const CountryFlag = ({ langId, className }: { langId: string, className?: string }) => {
@@ -171,12 +172,13 @@ const getDefaultLang = () => {
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [roomId, setRoomId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('room'));
+  const [roomId, setRoomId] = useState<string | null>(null);
   const [roomCreatorId, setRoomCreatorId] = useState<string | null>(null);
   const [activeConnections, setActiveConnections] = useState<number>(0);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [showRoomDialog, setShowRoomDialog] = useState(!new URLSearchParams(window.location.search).get('room'));
-  const [joinRoomIdInput, setJoinRoomIdInput] = useState('');
+  const [showRoomDialog, setShowRoomDialog] = useState(true);
+  const [joinRoomIdInput, setJoinRoomIdInput] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
+  const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || '');
   const [customAlert, setCustomAlert] = useState<{message: string, type: 'alert' | 'confirm', onConfirm?: () => void} | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
@@ -287,6 +289,10 @@ export default function App() {
     return () => clearTimeout(timeout);
   }, [showTimePrompt]);
 
+  useEffect(() => {
+    localStorage.setItem('user_name', userName);
+  }, [userName]);
+
   // Handle page unload for room creator
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -330,7 +336,8 @@ export default function App() {
               sourceLang: transcriptToSave.sourceLang,
               targetLang: transcriptToSave.targetLang,
               timestamp: serverTimestamp(),
-              speakerId: user.uid
+              speakerId: user.uid,
+              ...(userName ? { speakerName: userName } : {})
             });
           } catch (e) {
             console.error("Failed to save transcript to Firestore", e);
@@ -344,15 +351,8 @@ export default function App() {
   // Firebase Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser && new URLSearchParams(window.location.search).get('room')) {
-        signInAnon().catch(e => {
-          console.error("Anonymous sign in failed, falling back to Google sign in", e);
-          signInWithGoogle().catch(console.error);
-        });
-      } else {
-        setUser(currentUser);
-        setIsAuthReady(true);
-      }
+      setUser(currentUser);
+      setIsAuthReady(true);
     });
     return () => unsubscribe();
   }, []);
@@ -430,6 +430,8 @@ export default function App() {
           });
           stopLiveSession();
         }
+      }, (error) => {
+        console.error("Error listening to room:", error);
       });
 
       const qTranscripts = query(collection(db, 'rooms', roomId, 'transcripts'), orderBy('timestamp', 'asc'));
@@ -444,6 +446,8 @@ export default function App() {
           const localNonFinal = prev.filter(t => !t.isFinal);
           return [...firestoreTranscripts, ...localNonFinal];
         });
+      }, (error) => {
+        console.error("Error listening to transcripts:", error);
       });
     }
 
@@ -879,7 +883,8 @@ export default function App() {
     if (transcripts.length === 0) return;
     
     const text = transcripts.map(t => {
-      return `原文：${t.original}\n翻譯：${t.translated}`;
+      const speaker = t.speakerName ? `[${t.speakerName}] ` : '';
+      return `${speaker}原文：${t.original}\n翻譯：${t.translated}`;
     }).join('\n\n---\n\n');
     
     const shareData = {
@@ -1012,6 +1017,10 @@ export default function App() {
     setErrorMsg(null);
 
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("您的瀏覽器不支援麥克風，請嘗試使用 Safari 或 Chrome 瀏覽器開啟此網頁。");
+      }
+
       // Use default sample rate to ensure compatibility across all devices (especially Android)
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioContextRef.current = audioCtx;
@@ -1293,7 +1302,11 @@ Rules:
       });
     } catch (err: any) {
       console.error("Failed to start Live API:", err);
-      setErrorMsg(err.message || "啟動失敗");
+      if (err.name === 'NotAllowedError' || err.message?.toLowerCase().includes('permission denied')) {
+        setErrorMsg("無法存取麥克風。請允許麥克風權限，或嘗試使用 Safari / Chrome 瀏覽器開啟此網頁。");
+      } else {
+        setErrorMsg(err.message || "啟動失敗");
+      }
       stopLiveSession();
     }
   };
@@ -1376,6 +1389,19 @@ Rules:
               </p>
 
               <div className="space-y-6">
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    您的顯示名稱 (選填)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="輸入您的名字或 ID"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  />
+                </div>
+
                 <button
                   onClick={handleCreateRoom}
                   className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
@@ -1957,6 +1983,7 @@ Rules:
                       {/* 原文 (Local/Client 之一) */}
                       <div className="flex flex-col gap-1.5">
                         <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
+                          {t.speakerName && <span className="text-xs font-bold text-blue-600 dark:text-blue-400 mr-2">{t.speakerName}</span>}
                           {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
                           {t.original}
                         </div>

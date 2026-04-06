@@ -36,7 +36,8 @@
         "sourceLang": { "type": "string" },
         "targetLang": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
-        "speakerId": { "type": "string" }
+        "speakerId": { "type": "string" },
+        "speakerName": { "type": "string" }
       },
       "required": ["original", "translated", "isFinal", "timestamp", "speakerId"]
     },

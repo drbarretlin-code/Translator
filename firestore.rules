@@ -32,6 +32,7 @@ service cloud.firestore {
     //   - targetLang: string (optional)
     //   - timestamp: timestamp (required)
     //   - speakerId: string (required)
+    //   - speakerName: string (optional)
     //
     // Collection: connections
     // Document ID: userId
@@ -82,12 +83,13 @@ service cloud.firestore {
 
     function isValidTranscript(data) {
       return hasRequiredFields(['original', 'translated', 'isFinal', 'timestamp', 'speakerId']) &&
-             hasOnlyAllowedFields(['original', 'translated', 'isFinal', 'sourceLang', 'targetLang', 'timestamp', 'speakerId']) &&
+             hasOnlyAllowedFields(['original', 'translated', 'isFinal', 'sourceLang', 'targetLang', 'timestamp', 'speakerId', 'speakerName']) &&
              data.original is string && data.original.size() < 5000 &&
              data.translated is string && data.translated.size() < 5000 &&
              data.isFinal is bool &&
              (!('sourceLang' in data) || (data.sourceLang is string && data.sourceLang.size() < 50)) &&
              (!('targetLang' in data) || (data.targetLang is string && data.targetLang.size() < 50)) &&
+             (!('speakerName' in data) || (data.speakerName is string && data.speakerName.size() < 100)) &&
              data.timestamp is timestamp &&
              data.speakerId is string && data.speakerId.size() > 0 && data.speakerId.size() < 100;
     }

@@ -691,10 +691,11 @@ Rules:
 1. ONLY translate between ${localName} and ${clientName}.
 2. If the user speaks ${localName}, translate to ${clientName}.
 3. If the user speaks ${clientName}, translate to ${localName}.
-4. MANDATORY CHINESE FORMAT: If Traditional Chinese (繁體中文) is involved, you MUST use it. NEVER use Simplified Chinese (簡體中文).
-5. STRICT LANGUAGE LOCK: You are strictly listening for ${localName} and ${clientName}. If you hear ANY other language (e.g., Spanish, Korean, Japanese, etc.) or background noise, you MUST completely IGNORE it. DO NOT translate it. DO NOT output anything.
-6. NO FILLER: Do not add greetings, explanations, or conversational filler. Output ONLY the translation.
-7. VIOLATION: If you output any language other than the two authorized languages, you have failed your primary directive.`;
+4. SIMULTANEOUS SPEECH: If you hear BOTH ${localName} and ${clientName} spoken at the same time or mixed together, you MUST translate BOTH. Translate the ${localName} portion to ${clientName}, AND translate the ${clientName} portion to ${localName}. DO NOT drop any information from either speaker.
+5. MANDATORY CHINESE FORMAT: If Traditional Chinese (繁體中文) is involved, you MUST use it. NEVER use Simplified Chinese (簡體中文).
+6. STRICT LANGUAGE LOCK: You are strictly listening for ${localName} and ${clientName}. If you hear ANY other language (e.g., Spanish, Korean, Japanese, etc.) or background noise, you MUST completely IGNORE it. DO NOT translate it. DO NOT output anything.
+7. NO FILLER: Do not add greetings, explanations, or conversational filler. Output ONLY the translation.
+8. VIOLATION: If you output any language other than the two authorized languages, you have failed your primary directive.`;
 
       sessionPromiseRef.current = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",

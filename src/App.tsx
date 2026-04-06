@@ -16,10 +16,15 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
       !t.isFinal && "opacity-60"
     )}
   >
+    {/* ID 與時間標籤 */}
+    <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+      <span>{t.speakerName || 'User'}</span>
+      <span>{new Date(t.createdAt || t.timestamp?.toMillis() || Date.now()).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}</span>
+    </div>
+
     {/* 原文 */}
     <div className="flex flex-col gap-1.5">
       <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
-        {t.speakerName && <span className="text-xs font-bold text-blue-600 dark:text-blue-400 mr-2">{t.speakerName}</span>}
         {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
         {t.original}
       </div>

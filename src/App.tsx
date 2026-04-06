@@ -2070,13 +2070,13 @@ Rules:
                 <p className="text-sm">點擊上方按鈕開始對話</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-start content-start">
-                {transcripts.map((t) => {
+              <div className="grid grid-cols-1 gap-2 items-start content-start">
+                {[...transcripts].sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0)).map((t) => {
                   return (
                     <div 
                       key={t.id} 
                       className={cn(
-                        "flex flex-col gap-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-2 transition-all duration-300 shadow-sm",
+                        "flex flex-col gap-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-3 transition-all duration-300 shadow-sm",
                         !t.isFinal && "opacity-60"
                       )}
                     >

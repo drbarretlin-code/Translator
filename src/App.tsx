@@ -179,9 +179,13 @@ export default function App() {
   const [showRoomDialog, setShowRoomDialog] = useState(true);
   const [joinRoomIdInput, setJoinRoomIdInput] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
   const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || '');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [apiKeyType, setApiKeyType] = useState<'free' | 'paid'>(() => (localStorage.getItem('api_key_type') as 'free' | 'paid') || 'free');
+  const [projectName, setProjectName] = useState(() => localStorage.getItem('project_name') || '');
   const [customAlert, setCustomAlert] = useState<{message: string, type: 'alert' | 'confirm', onConfirm?: () => void} | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
+  const [isSpeakingEnabled, setIsSpeakingEnabled] = useState(false);
   const [localLang, setLocalLang] = useState(getDefaultLang);
   const [clientLang, setClientLang] = useState('en-US');
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
@@ -194,7 +198,6 @@ export default function App() {
   const [shareSuccess, setShareSuccess] = useState(false);
   
   const [showAdminSettings, setShowAdminSettings] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
   const [showResponsivenessInfo, setShowResponsivenessInfo] = useState(false);
   
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
@@ -246,6 +249,7 @@ export default function App() {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRecording) {
+      startLiveSession();
       interval = setInterval(() => {
         setSessionSeconds(prev => {
           const newVal = prev + 1;
@@ -257,6 +261,7 @@ export default function App() {
         setLiveSessionDuration(prev => prev + 1);
       }, 1000);
     } else {
+      stopLiveSession();
       setLiveSessionDuration(0);
       setShowTimePrompt(false);
     }
@@ -409,6 +414,16 @@ export default function App() {
           if (data.apiKey) {
             setRoomApiKey(data.apiKey);
           }
+          if (data.apiKeyType) {
+            setApiKeyType(data.apiKeyType);
+          }
+          if (data.projectName) {
+            setProjectName(data.projectName);
+          }
+          if (data.isSpeakingEnabled !== undefined) {
+            setIsSpeakingEnabled(data.isSpeakingEnabled);
+            setIsRecording(data.isSpeakingEnabled);
+          }
           if (data.isClosed) {
             setCustomAlert({ 
               message: "房間已由建立者關閉，連線已失效。", 
@@ -492,6 +507,9 @@ export default function App() {
         creatorId: currentUser.uid,
         createdAt: serverTimestamp(),
         apiKey: userApiKey,
+        apiKeyType: apiKeyType,
+        projectName: projectName,
+        isSpeakingEnabled: false,
         isClosed: false
       });
       setRoomId(newRoomId);
@@ -588,8 +606,31 @@ export default function App() {
     clientLangRef.current = clientLang;
   }, [clientLang]);
 
+  const inferApiKeyInfo = async (key: string) => {
+    if (!key) {
+      setApiKeyType('free');
+      setProjectName('');
+      return;
+    }
+    try {
+      const ai = new GoogleGenAI({ apiKey: key });
+      await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: "test",
+      });
+      setApiKeyType('paid');
+      setProjectName('Gemini API');
+    } catch (e) {
+      setApiKeyType('free');
+      setProjectName('Invalid Key');
+    }
+  };
+
   useEffect(() => {
     localStorage.setItem('gemini_api_key', userApiKey);
+    localStorage.setItem('api_key_type', apiKeyType);
+    localStorage.setItem('project_name', projectName);
+    inferApiKeyInfo(userApiKey);
   }, [userApiKey]);
 
   useEffect(() => {
@@ -1312,11 +1353,12 @@ Rules:
 
   // 切換錄音狀態
   const toggleRecording = async () => {
-    if (isRecording) {
-      stopLiveSession();
-    } else {
-      startLiveSession();
-    }
+    if (!roomId || user?.uid !== roomCreatorId) return;
+    
+    const newRecordingState = !isRecording;
+    await updateDoc(doc(db, 'rooms', roomId), {
+      isSpeakingEnabled: newRecordingState
+    });
   };
 
   return (
@@ -1405,13 +1447,29 @@ Rules:
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Gemini API 金鑰
                   </label>
-                  <input
-                    type="password"
-                    placeholder="輸入您的 API 金鑰"
-                    value={userApiKey}
-                    onChange={(e) => setUserApiKey(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      placeholder="輸入您的 API 金鑰"
+                      value={userApiKey}
+                      onChange={(e) => setUserApiKey(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all pr-24"
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                      <button
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                      <button
+                        onClick={() => setUserApiKey('')}
+                        className="p-2 text-slate-400 hover:text-red-500"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <button
@@ -1471,6 +1529,16 @@ Rules:
             {roomId && (
               <div className="flex items-center gap-2 mr-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg">
                 <span className="text-xs font-medium">房間: {roomId}</span>
+                {projectName && (
+                  <>
+                    <span className="text-slate-400">|</span>
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{projectName}</span>
+                  </>
+                )}
+                <span className="text-slate-400">|</span>
+                <span className={cn("text-xs font-medium", apiKeyType === 'paid' ? "text-amber-600" : "text-green-600")}>
+                  {apiKeyType === 'paid' ? '付費版' : '免費版'}
+                </span>
                 <button 
                   onClick={handleShareUrl}
                   className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-blue-600 dark:text-blue-400"
@@ -1832,23 +1900,25 @@ Rules:
                 </div>
               </div>
               
-              <div className="flex-shrink-0">
-                <button
-                  onClick={toggleRecording}
-                  className={cn(
-                    "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all duration-300 shadow-sm h-[32px]",
-                    isRecording
-                      ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 animate-pulse" 
-                      : "bg-blue-600 text-white hover:bg-blue-700 border border-transparent"
-                  )}
-                >
-                  {isRecording ? (
-                    <><Square className="w-3.5 h-3.5 fill-current" /> <span className="text-xs">{getUiText('stop')}</span></>
-                  ) : (
-                    <><Mic className="w-3.5 h-3.5" /> <span className="text-xs">{getUiText('speaking')}</span></>
-                  )}
-                </button>
-              </div>
+              {user?.uid === roomCreatorId && (
+                <div className="flex-shrink-0">
+                  <button
+                    onClick={toggleRecording}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all duration-300 shadow-sm h-[32px]",
+                      isRecording
+                        ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 animate-pulse" 
+                        : "bg-blue-600 text-white hover:bg-blue-700 border border-transparent"
+                    )}
+                  >
+                    {isRecording ? (
+                      <><Square className="w-3.5 h-3.5 fill-current" /> <span className="text-xs">{getUiText('stop')}</span></>
+                    ) : (
+                      <><Mic className="w-3.5 h-3.5" /> <span className="text-xs">{getUiText('speaking')}</span></>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* 右側國旗 (Client) */}

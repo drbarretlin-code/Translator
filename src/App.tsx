@@ -2145,11 +2145,11 @@ Rules:
                 <p className="text-sm">點擊上方按鈕開始對話</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-2 overflow-anchor-auto">
+              <div className="flex flex-col gap-2 [overflow-anchor:none]">
                 {[...transcripts]
                   .sort((a, b) => {
-                    const timeA = a.timestamp?.toMillis() || a.createdAt || 0;
-                    const timeB = b.timestamp?.toMillis() || b.createdAt || 0;
+                    const timeA = a.createdAt || a.timestamp?.toMillis() || 0;
+                    const timeB = b.createdAt || b.timestamp?.toMillis() || 0;
                     return timeB - timeA;
                   })
                   .map((t) => (

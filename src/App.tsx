@@ -17,13 +17,13 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
     )}
   >
     {/* ID 與時間標籤 */}
-    <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+    <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono h-4">
       <span>{t.speakerName || 'User'}</span>
-      <span>{new Date(t.createdAt || t.timestamp?.toMillis() || Date.now()).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}</span>
+      <span>{new Date(t.createdAt || t.timestamp?.toMillis() || Date.now()).toLocaleTimeString('zh-TW', { minute: '2-digit', second: '2-digit' })}</span>
     </div>
 
     {/* 原文 */}
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5 min-h-[1.5rem]">
       <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
         {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
         {t.original}
@@ -31,10 +31,10 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
     </div>
     
     {/* 分隔線 */}
-    <div className="h-px w-full bg-slate-200 dark:bg-slate-700"></div>
+    <div className="h-px w-full bg-slate-200 dark:bg-slate-700 shrink-0"></div>
     
     {/* 翻譯文 */}
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5 min-h-[1.5rem]">
       {t.error ? (
         <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-[15px]">
           <AlertCircle className="w-4 h-4" />
@@ -48,7 +48,7 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
             </div>
           )}
           {!t.isFinal && (
-            <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-sm">
+            <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 text-sm h-5">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             </div>
           )}

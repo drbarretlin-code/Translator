@@ -139,6 +139,36 @@ const CountryFlag = ({ langId, className }: { langId: string, className?: string
   }
 };
 
+const getDefaultLang = () => {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz === 'Asia/Taipei' || tz === 'Asia/Hong_Kong' || tz === 'Asia/Macau') return 'zh-TW';
+    if (tz === 'Asia/Tokyo') return 'ja-JP';
+    if (tz.startsWith('Europe/Paris')) return 'fr-FR';
+    if (tz === 'Asia/Bangkok') return 'th-TH';
+    if (tz === 'Asia/Ho_Chi_Minh') return 'vi-VN';
+    if (tz === 'Asia/Jakarta') return 'id-ID';
+    if (tz === 'Asia/Kuala_Lumpur') return 'ms-MY';
+    if (tz === 'Europe/London') return 'en-GB';
+    if (tz.startsWith('America/')) return 'en-US';
+  } catch (e) {
+    console.error(e);
+  }
+  
+  // Fallback to navigator.language
+  const lang = navigator.language;
+  if (lang.startsWith('zh-TW') || lang.startsWith('zh-HK')) return 'zh-TW';
+  if (lang.startsWith('zh')) return 'zh-TW';
+  if (lang.startsWith('ja')) return 'ja-JP';
+  if (lang.startsWith('fr')) return 'fr-FR';
+  if (lang.startsWith('th')) return 'th-TH';
+  if (lang.startsWith('vi')) return 'vi-VN';
+  if (lang.startsWith('id')) return 'id-ID';
+  if (lang.startsWith('ms')) return 'ms-MY';
+  if (lang.startsWith('en-GB')) return 'en-GB';
+  return 'en-US';
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [roomId, setRoomId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('room'));
@@ -150,41 +180,13 @@ export default function App() {
   const [customAlert, setCustomAlert] = useState<{message: string, type: 'alert' | 'confirm', onConfirm?: () => void} | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
-  const [localLang, setLocalLang] = useState('zh-TW');
+  const [localLang, setLocalLang] = useState(getDefaultLang);
   const [clientLang, setClientLang] = useState('en-US');
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
-  const uiLang = React.useMemo(() => {
-    try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (tz === 'Asia/Taipei' || tz === 'Asia/Hong_Kong' || tz === 'Asia/Macau') return 'zh-TW';
-      if (tz === 'Asia/Tokyo') return 'ja-JP';
-      if (tz.startsWith('Europe/Paris')) return 'fr-FR';
-      if (tz === 'Asia/Bangkok') return 'th-TH';
-      if (tz === 'Asia/Ho_Chi_Minh') return 'vi-VN';
-      if (tz === 'Asia/Jakarta') return 'id-ID';
-      if (tz === 'Asia/Kuala_Lumpur') return 'ms-MY';
-      if (tz === 'Europe/London') return 'en-GB';
-      if (tz.startsWith('America/')) return 'en-US';
-    } catch (e) {
-      console.error(e);
-    }
-    
-    // Fallback to navigator.language
-    const lang = navigator.language;
-    if (lang.startsWith('zh-TW') || lang.startsWith('zh-HK')) return 'zh-TW';
-    if (lang.startsWith('zh')) return 'zh-TW';
-    if (lang.startsWith('ja')) return 'ja-JP';
-    if (lang.startsWith('fr')) return 'fr-FR';
-    if (lang.startsWith('th')) return 'th-TH';
-    if (lang.startsWith('vi')) return 'vi-VN';
-    if (lang.startsWith('id')) return 'id-ID';
-    if (lang.startsWith('ms')) return 'ms-MY';
-    if (lang.startsWith('en-GB')) return 'en-GB';
-    return 'en-US';
-  }, []);
+  const uiLang = React.useMemo(() => getDefaultLang(), []);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   
@@ -260,13 +262,29 @@ export default function App() {
 
   useEffect(() => {
     if (liveSessionDuration === 3600 || liveSessionDuration === 7200) {
-      setShowTimePrompt(true);
+      if (user && roomCreatorId && user.uid === roomCreatorId) {
+        setShowTimePrompt(true);
+      }
     } else if (liveSessionDuration >= 10800) {
-      stopLiveSession();
-      setCustomAlert({ message: "連續使用已達三小時，系統強制斷線。", type: 'alert' });
-      setLiveSessionDuration(0);
+      if (user && roomCreatorId && user.uid === roomCreatorId) {
+        stopLiveSession();
+        setCustomAlert({ message: "連續使用已達三小時，系統強制斷線。", type: 'alert' });
+        setLiveSessionDuration(0);
+      }
     }
-  }, [liveSessionDuration]);
+  }, [liveSessionDuration, user, roomCreatorId]);
+
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (showTimePrompt) {
+      timeout = setTimeout(() => {
+        stopLiveSession();
+        setShowTimePrompt(false);
+        setCustomAlert({ message: "閒置超過3分鐘，系統已自動斷線。", type: 'alert' });
+      }, 3 * 60 * 1000); // 3 minutes
+    }
+    return () => clearTimeout(timeout);
+  }, [showTimePrompt]);
 
   // 同步 state 到 ref，供事件回呼使用
   useEffect(() => {
@@ -312,7 +330,10 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (!currentUser && new URLSearchParams(window.location.search).get('room')) {
-        signInAnon();
+        signInAnon().catch(e => {
+          console.error("Anonymous sign in failed, falling back to Google sign in", e);
+          signInWithGoogle().catch(console.error);
+        });
       } else {
         setUser(currentUser);
         setIsAuthReady(true);
@@ -401,10 +422,16 @@ export default function App() {
   }, [isAuthReady, user, roomId]);
 
   const handleCreateRoom = async () => {
-    if (!user) {
-      await signInWithGoogle();
-      return;
+    let currentUser = user;
+    if (!currentUser) {
+      try {
+        currentUser = await signInWithGoogle();
+      } catch (e) {
+        return;
+      }
     }
+    if (!currentUser) return;
+
     if (activeConnections >= 100) {
       setCustomAlert({ message: "系統警告：目前線上人數已達 100 人上限，無法建立新連線。請稍後再試。", type: 'alert' });
       return;
@@ -412,7 +439,7 @@ export default function App() {
     try {
       const newRoomId = Math.random().toString(36).substring(2, 9);
       await setDoc(doc(db, 'rooms', newRoomId), {
-        creatorId: user.uid,
+        creatorId: currentUser.uid,
         createdAt: serverTimestamp()
       });
       setRoomId(newRoomId);
@@ -425,9 +452,21 @@ export default function App() {
   };
 
   const handleJoinRoom = async () => {
-    if (!user) {
-      await signInAnon();
+    let currentUser = user;
+    if (!currentUser) {
+      try {
+        currentUser = await signInAnon();
+      } catch (e) {
+        // Fallback to Google sign in if anonymous auth is disabled
+        try {
+          currentUser = await signInWithGoogle();
+        } catch (err) {
+          return;
+        }
+      }
     }
+    if (!currentUser) return;
+
     if (activeConnections >= 100) {
       setCustomAlert({ message: "系統警告：目前線上人數已達 100 人上限，無法建立新連線。請稍後再試。", type: 'alert' });
       return;

@@ -425,9 +425,15 @@ export default function App() {
     let currentUser = user;
     if (!currentUser) {
       try {
-        currentUser = await signInWithGoogle();
+        currentUser = await signInAnon();
       } catch (e) {
-        return;
+        console.warn("Anonymous sign in failed, trying Google", e);
+        try {
+          currentUser = await signInWithGoogle();
+        } catch (err: any) {
+          setCustomAlert({ message: "登入失敗，請確認瀏覽器是否阻擋彈出視窗：" + err.message, type: 'alert' });
+          return;
+        }
       }
     }
     if (!currentUser) return;
@@ -445,9 +451,9 @@ export default function App() {
       setRoomId(newRoomId);
       setShowRoomDialog(false);
       window.history.replaceState({}, '', `?room=${newRoomId}`);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setCustomAlert({ message: "建立房間失敗", type: 'alert' });
+      setCustomAlert({ message: "建立房間失敗：" + e.message, type: 'alert' });
     }
   };
 
@@ -460,7 +466,8 @@ export default function App() {
         // Fallback to Google sign in if anonymous auth is disabled
         try {
           currentUser = await signInWithGoogle();
-        } catch (err) {
+        } catch (err: any) {
+          setCustomAlert({ message: "登入失敗，請確認瀏覽器是否阻擋彈出視窗：" + err.message, type: 'alert' });
           return;
         }
       }
@@ -482,9 +489,9 @@ export default function App() {
       } else {
         setCustomAlert({ message: "找不到此房間代碼", type: 'alert' });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setCustomAlert({ message: "加入房間失敗", type: 'alert' });
+      setCustomAlert({ message: "加入房間失敗：" + e.message, type: 'alert' });
     }
   };
 

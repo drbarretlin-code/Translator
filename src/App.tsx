@@ -482,8 +482,7 @@ export default function App() {
     }
     
     if (!userApiKey) {
-      setCustomAlert({ message: "請先在管理者設定中配置您的 Gemini API 金鑰，再建立房間。", type: 'alert' });
-      setShowAdminSettings(true);
+      setCustomAlert({ message: "請輸入您的 Gemini API 金鑰，再建立房間。", type: 'alert' });
       return;
     }
 
@@ -1398,6 +1397,19 @@ Rules:
                     placeholder="輸入您的名字或 ID"
                     value={userName}
                     onChange={(e) => setUserName(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Gemini API 金鑰
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="輸入您的 API 金鑰"
+                    value={userApiKey}
+                    onChange={(e) => setUserApiKey(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   />
                 </div>

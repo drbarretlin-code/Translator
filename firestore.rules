@@ -19,6 +19,8 @@ service cloud.firestore {
     // Fields:
     //   - creatorId: string (required)
     //   - createdAt: timestamp (required)
+    //   - apiKey: string (optional)
+    //   - isClosed: boolean (optional)
     //
     // Collection: rooms/{roomId}/transcripts
     // Document ID: transcriptId
@@ -71,9 +73,11 @@ service cloud.firestore {
 
     function isValidRoom(data) {
       return hasRequiredFields(['creatorId', 'createdAt']) &&
-             hasOnlyAllowedFields(['creatorId', 'createdAt']) &&
+             hasOnlyAllowedFields(['creatorId', 'createdAt', 'apiKey', 'isClosed']) &&
              data.creatorId is string && data.creatorId.size() > 0 && data.creatorId.size() < 100 &&
-             data.createdAt is timestamp;
+             data.createdAt is timestamp &&
+             (!('apiKey' in data) || (data.apiKey is string && data.apiKey.size() < 200)) &&
+             (!('isClosed' in data) || data.isClosed is bool);
     }
 
     function isValidTranscript(data) {
@@ -108,7 +112,7 @@ service cloud.firestore {
     match /rooms/{roomId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidRoom(request.resource.data) && request.resource.data.creatorId == request.auth.uid;
-      allow update: if false; // Rooms don't need updates currently
+      allow update: if isAuthenticated() && isValidRoom(request.resource.data) && resource.data.creatorId == request.auth.uid && request.resource.data.creatorId == resource.data.creatorId && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if isAuthenticated() && resource.data.creatorId == request.auth.uid;
     }
 

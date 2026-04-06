@@ -19,7 +19,9 @@
       "type": "object",
       "properties": {
         "creatorId": { "type": "string", "description": "UID of the user who created the room" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "apiKey": { "type": "string", "description": "The API key used for the room" },
+        "isClosed": { "type": "boolean", "description": "Whether the room has been closed by the creator" }
       },
       "required": ["creatorId", "createdAt"]
     },

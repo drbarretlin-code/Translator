@@ -384,8 +384,8 @@ export default function App() {
         
         const saveToFirestore = async () => {
           try {
-            // Mark locally as synced immediately to prevent duplicate triggers
-            setTranscripts(prev => prev.map(t => t.id === transcriptToSave.id ? { ...t, id: `fs-${t.id}` } : t));
+            // 不再變更 ID，保持與 Firestore 的同步一致性
+            // setTranscripts(prev => prev.map(t => t.id === transcriptToSave.id ? { ...t, id: `fs-${t.id}` } : t));
             
             await setDoc(doc(db, 'rooms', roomId, 'transcripts', transcriptToSave.id), {
               original: transcriptToSave.original,
@@ -511,7 +511,9 @@ export default function App() {
         
         // Merge with local non-final transcripts
         setTranscripts(prev => {
-          const localNonFinal = prev.filter(t => !t.isFinal);
+          // 使用 ID 來過濾掉已經同步到 Firestore 的本地記錄
+          const firestoreIds = new Set(firestoreTranscripts.map(t => t.id));
+          const localNonFinal = prev.filter(t => !t.isFinal && !firestoreIds.has(t.id));
           return [...firestoreTranscripts, ...localNonFinal];
         });
       }, (error) => {

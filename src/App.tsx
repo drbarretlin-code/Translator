@@ -81,6 +81,8 @@ interface Transcript {
   detectedLang?: string;
   error?: string;
   speakerName?: string;
+  createdAt: number;
+  timestamp?: any;
 }
 
 const CountryFlag = ({ langId, className }: { langId: string, className?: string }) => {
@@ -1296,7 +1298,8 @@ Rules:
                       isFinal: false,
                       isTranslating: true,
                       sourceLang: "Auto",
-                      targetLang: "Auto"
+                      targetLang: "Auto",
+                      createdAt: Date.now()
                     }];
                   }
                 });
@@ -2137,7 +2140,11 @@ Rules:
             ) : (
               <div className="flex flex-col gap-2 overflow-anchor-auto">
                 {[...transcripts]
-                  .sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0))
+                  .sort((a, b) => {
+                    const timeA = a.timestamp?.toMillis() || a.createdAt || 0;
+                    const timeB = b.timestamp?.toMillis() || b.createdAt || 0;
+                    return timeB - timeA;
+                  })
                   .map((t) => (
                     <TranscriptItem key={t.id} t={t} />
                   ))}

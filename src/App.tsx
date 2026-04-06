@@ -2152,9 +2152,12 @@ Rules:
               <div className="flex flex-col gap-2 [overflow-anchor:none]">
                 {[...transcripts]
                   .sort((a, b) => {
-                    const timeA = a.createdAt || a.timestamp?.toMillis() || 0;
-                    const timeB = b.createdAt || b.timestamp?.toMillis() || 0;
-                    return timeB - timeA;
+                    const getTime = (t: any) => {
+                      if (t.createdAt) return new Date(t.createdAt).getTime();
+                      if (t.timestamp?.toMillis) return t.timestamp.toMillis();
+                      return 0;
+                    };
+                    return getTime(b) - getTime(a);
                   })
                   .map((t) => (
                     <TranscriptItem key={t.id} t={t} />

@@ -261,6 +261,7 @@ export default function App() {
   
   // 輸出模式控制
   const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(() => localStorage.getItem('audio_output') !== 'false');
+  const [audioOutputMode, setAudioOutputMode] = useState<'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'Myself' | 'ALL' | 'Others') || 'ALL');
   const [isTextOutputEnabled, setIsTextOutputEnabled] = useState(() => localStorage.getItem('text_output') !== 'false');
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -637,7 +638,8 @@ export default function App() {
   useEffect(() => {
     isAudioOutputEnabledRef.current = isAudioOutputEnabled;
     localStorage.setItem('audio_output', isAudioOutputEnabled.toString());
-  }, [isAudioOutputEnabled]);
+    localStorage.setItem('audio_output_mode', audioOutputMode);
+  }, [isAudioOutputEnabled, audioOutputMode]);
 
   useEffect(() => {
     isTextOutputEnabledRef.current = isTextOutputEnabled;
@@ -1306,7 +1308,11 @@ Rules:
                   textContent += convertToTwIfNeeded(part.text);
                 }
                 if (part.inlineData?.data && isAudioOutputEnabledRef.current) {
-                  playAudioChunk(part.inlineData.data);
+                  // 使用 isRecording 作為指標，判斷是否為本地麥克風開啟時的語音
+                  const isSelf = isRecording; 
+                  if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
+                    playAudioChunk(part.inlineData.data);
+                  }
                 }
               }
 
@@ -2021,22 +2027,30 @@ Rules:
               </button>
             </div>
 
-            <button
-              onClick={() => {
-                if (isAudioOutputEnabled && !isTextOutputEnabled) return; // 防止兩個都關閉
-                setIsAudioOutputEnabled(!isAudioOutputEnabled);
-              }}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 border",
-                isAudioOutputEnabled 
-                  ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30" 
-                  : "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100"
-              )}
-              title={getUiText('audioOutput')}
-            >
-              {isAudioOutputEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-              {getUiText('audioOutput')}
-            </button>
+            <div className="relative">
+              <select
+                value={audioOutputMode}
+                onChange={(e) => {
+                  const mode = e.target.value as 'Myself' | 'ALL' | 'Others';
+                  setAudioOutputMode(mode);
+                  setIsAudioOutputEnabled(true);
+                }}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 border appearance-none cursor-pointer",
+                  isAudioOutputEnabled 
+                    ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30" 
+                    : "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100"
+                )}
+                title={getUiText('audioOutput')}
+              >
+                <option value="Myself">Myself</option>
+                <option value="ALL">ALL</option>
+                <option value="Others">Others</option>
+              </select>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                {isAudioOutputEnabled ? <Volume2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> : <VolumeX className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />}
+              </div>
+            </div>
             <button
               onClick={() => {
                 if (isTextOutputEnabled && !isAudioOutputEnabled) return; // 防止兩個都關閉

@@ -260,8 +260,12 @@ export default function App() {
   const [showTimePrompt, setShowTimePrompt] = useState(false);
   
   // 輸出模式控制
-  const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(() => localStorage.getItem('audio_output') !== 'false');
-  const [audioOutputMode, setAudioOutputMode] = useState<'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'Myself' | 'ALL' | 'Others') || 'ALL');
+  const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(() => {
+    const mode = localStorage.getItem('audio_output_mode');
+    if (mode === 'None') return false;
+    return localStorage.getItem('audio_output') !== 'false';
+  });
+  const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'None');
   const [isTextOutputEnabled, setIsTextOutputEnabled] = useState(() => localStorage.getItem('text_output') !== 'false');
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -1307,7 +1311,7 @@ Rules:
                 if (part.text && isTextOutputEnabledRef.current) {
                   textContent += convertToTwIfNeeded(part.text);
                 }
-                if (part.inlineData?.data && isAudioOutputEnabledRef.current) {
+                if (part.inlineData?.data && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
                   // 使用 isRecording 作為指標，判斷是否為本地麥克風開啟時的語音
                   const isSelf = isRecording; 
                   if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
@@ -2031,9 +2035,9 @@ Rules:
               <select
                 value={audioOutputMode}
                 onChange={(e) => {
-                  const mode = e.target.value as 'Myself' | 'ALL' | 'Others';
+                  const mode = e.target.value as 'None' | 'Myself' | 'ALL' | 'Others';
                   setAudioOutputMode(mode);
-                  setIsAudioOutputEnabled(true);
+                  setIsAudioOutputEnabled(mode !== 'None');
                 }}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 border appearance-none cursor-pointer",
@@ -2043,6 +2047,7 @@ Rules:
                 )}
                 title={getUiText('audioOutput')}
               >
+                <option value="None">None</option>
                 <option value="Myself">Myself</option>
                 <option value="ALL">ALL</option>
                 <option value="Others">Others</option>

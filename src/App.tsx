@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as OpenCC from 'opencc-js';
@@ -252,6 +253,17 @@ export default function App() {
   
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [showResponsivenessInfo, setShowResponsivenessInfo] = useState(false);
+
+  const memoizedTranscripts = useMemo(() => {
+    return [...transcripts].sort((a, b) => {
+      const getTime = (t: any) => {
+        if (t.createdAt) return new Date(t.createdAt).getTime();
+        if (t.timestamp?.toMillis) return t.timestamp.toMillis();
+        return 0;
+      };
+      return getTime(a) - getTime(b);
+    });
+  }, [transcripts]);
   
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
@@ -2140,7 +2152,9 @@ Rules:
             </div>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+
+// ... (in the render block)
+          <div className="flex-1 overflow-hidden p-4 sm:p-5">
             {transcripts.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 space-y-4 min-h-[200px]">
                 <div className="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center border border-slate-100 dark:border-slate-800">
@@ -2149,21 +2163,16 @@ Rules:
                 <p className="text-sm">點擊上方按鈕開始對話</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-2">
-                {[...transcripts]
-                  .sort((a, b) => {
-                    const getTime = (t: any) => {
-                      if (t.createdAt) return new Date(t.createdAt).getTime();
-                      if (t.timestamp?.toMillis) return t.timestamp.toMillis();
-                      return 0;
-                    };
-                    return getTime(a) - getTime(b); // 改為舊到新排序
-                  })
-                  .map((t) => (
+              <Virtuoso
+                style={{ height: '100%' }}
+                data={memoizedTranscripts}
+                itemContent={(index, t) => (
+                  <div className="mb-2">
                     <TranscriptItem key={t.id} t={t} />
-                  ))}
-                <div ref={transcriptEndRef} className="col-span-full" />
-              </div>
+                  </div>
+                )}
+                followOutput="smooth"
+              />
             )}
           </div>
         </div>

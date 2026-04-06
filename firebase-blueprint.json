@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User ID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "A translation room",
+      "type": "object",
+      "properties": {
+        "creatorId": { "type": "string", "description": "UID of the user who created the room" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["creatorId", "createdAt"]
+    },
+    "Transcript": {
+      "title": "Transcript",
+      "description": "A single translation message in a room",
+      "type": "object",
+      "properties": {
+        "original": { "type": "string" },
+        "translated": { "type": "string" },
+        "isFinal": { "type": "boolean" },
+        "sourceLang": { "type": "string" },
+        "targetLang": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "speakerId": { "type": "string" }
+      },
+      "required": ["original", "translated", "isFinal", "timestamp", "speakerId"]
+    },
+    "Connection": {
+      "title": "Connection",
+      "description": "Tracks active users for concurrent connection counting",
+      "type": "object",
+      "properties": {
+        "lastActive": { "type": "string", "format": "date-time" },
+        "roomId": { "type": "string" }
+      },
+      "required": ["lastActive"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "Translation rooms"
+    },
+    "/rooms/{roomId}/transcripts/{transcriptId}": {
+      "schema": { "$ref": "#/entities/Transcript" },
+      "description": "Transcripts within a room"
+    },
+    "/connections/{userId}": {
+      "schema": { "$ref": "#/entities/Connection" },
+      "description": "Active connections"
+    }
+  }
+}

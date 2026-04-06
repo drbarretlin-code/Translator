@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as OpenCC from 'opencc-js';
 import { cn } from './lib/utils';
+import { db, auth, signInWithGoogle, signInAnon } from './firebase';
+import { collection, doc, setDoc, onSnapshot, query, orderBy, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, writeBatch } from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 // 初始化簡轉繁轉換器
 const s2tConverter = OpenCC.Converter({ from: 'cn', to: 'tw' });
@@ -137,6 +140,15 @@ const CountryFlag = ({ langId, className }: { langId: string, className?: string
 };
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('room'));
+  const [roomCreatorId, setRoomCreatorId] = useState<string | null>(null);
+  const [activeConnections, setActiveConnections] = useState<number>(0);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [showRoomDialog, setShowRoomDialog] = useState(!new URLSearchParams(window.location.search).get('room'));
+  const [joinRoomIdInput, setJoinRoomIdInput] = useState('');
+  const [customAlert, setCustomAlert] = useState<{message: string, type: 'alert' | 'confirm', onConfirm?: () => void} | null>(null);
+
   const [isRecording, setIsRecording] = useState(false);
   const [localLang, setLocalLang] = useState('zh-TW');
   const [clientLang, setClientLang] = useState('en-US');
@@ -144,7 +156,35 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
-  const [uiLang, setUiLang] = useState(() => localStorage.getItem('ui_lang') || 'zh-TW');
+  const uiLang = React.useMemo(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz === 'Asia/Taipei' || tz === 'Asia/Hong_Kong' || tz === 'Asia/Macau') return 'zh-TW';
+      if (tz === 'Asia/Tokyo') return 'ja-JP';
+      if (tz.startsWith('Europe/Paris')) return 'fr-FR';
+      if (tz === 'Asia/Bangkok') return 'th-TH';
+      if (tz === 'Asia/Ho_Chi_Minh') return 'vi-VN';
+      if (tz === 'Asia/Jakarta') return 'id-ID';
+      if (tz === 'Asia/Kuala_Lumpur') return 'ms-MY';
+      if (tz === 'Europe/London') return 'en-GB';
+      if (tz.startsWith('America/')) return 'en-US';
+    } catch (e) {
+      console.error(e);
+    }
+    
+    // Fallback to navigator.language
+    const lang = navigator.language;
+    if (lang.startsWith('zh-TW') || lang.startsWith('zh-HK')) return 'zh-TW';
+    if (lang.startsWith('zh')) return 'zh-TW';
+    if (lang.startsWith('ja')) return 'ja-JP';
+    if (lang.startsWith('fr')) return 'fr-FR';
+    if (lang.startsWith('th')) return 'th-TH';
+    if (lang.startsWith('vi')) return 'vi-VN';
+    if (lang.startsWith('id')) return 'id-ID';
+    if (lang.startsWith('ms')) return 'ms-MY';
+    if (lang.startsWith('en-GB')) return 'en-GB';
+    return 'en-US';
+  }, []);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   
@@ -160,6 +200,10 @@ export default function App() {
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [isCostUnlocked, setIsCostUnlocked] = useState(false);
   const [costPasswordInput, setCostPasswordInput] = useState('');
+  
+  // 連線時間限制相關 state
+  const [liveSessionDuration, setLiveSessionDuration] = useState(0);
+  const [showTimePrompt, setShowTimePrompt] = useState(false);
   
   // 輸出模式控制
   const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(() => localStorage.getItem('audio_output') !== 'false');
@@ -204,15 +248,235 @@ export default function App() {
           localStorage.setItem('api_usage_stats', JSON.stringify({ month: currentMonth, seconds: newVal }));
           return newVal;
         });
+
+        setLiveSessionDuration(prev => prev + 1);
       }, 1000);
+    } else {
+      setLiveSessionDuration(0);
+      setShowTimePrompt(false);
     }
     return () => clearInterval(interval);
   }, [isRecording]);
 
+  useEffect(() => {
+    if (liveSessionDuration === 3600 || liveSessionDuration === 7200) {
+      setShowTimePrompt(true);
+    } else if (liveSessionDuration >= 10800) {
+      stopLiveSession();
+      setCustomAlert({ message: "連續使用已達三小時，系統強制斷線。", type: 'alert' });
+      setLiveSessionDuration(0);
+    }
+  }, [liveSessionDuration]);
+
   // 同步 state 到 ref，供事件回呼使用
   useEffect(() => {
     transcriptsRef.current = transcripts;
-  }, [transcripts]);
+
+    // Sync newly finalized transcripts to Firestore
+    if (roomId && user) {
+      const lastTranscript = transcripts[transcripts.length - 1];
+      if (lastTranscript && lastTranscript.isFinal && !lastTranscript.id.startsWith('fs-')) {
+        // Mark as synced to avoid duplicate writes
+        const transcriptToSave = { ...lastTranscript };
+        
+        // We need to update local state to mark it as synced, but doing it here might cause infinite loop.
+        // Instead, we can just write to Firestore. The snapshot listener will pull it back.
+        // To avoid duplicates in UI, our snapshot listener merges based on `isFinal`.
+        // Actually, the snapshot listener replaces the local final transcripts.
+        // So we just write it once.
+        
+        const saveToFirestore = async () => {
+          try {
+            // Mark locally as synced immediately to prevent duplicate triggers
+            setTranscripts(prev => prev.map(t => t.id === transcriptToSave.id ? { ...t, id: `fs-${t.id}` } : t));
+            
+            await setDoc(doc(db, 'rooms', roomId, 'transcripts', transcriptToSave.id), {
+              original: transcriptToSave.original,
+              translated: transcriptToSave.translated,
+              isFinal: true,
+              sourceLang: transcriptToSave.sourceLang,
+              targetLang: transcriptToSave.targetLang,
+              timestamp: serverTimestamp(),
+              speakerId: user.uid
+            });
+          } catch (e) {
+            console.error("Failed to save transcript to Firestore", e);
+          }
+        };
+        saveToFirestore();
+      }
+    }
+  }, [transcripts, roomId, user]);
+
+  // Firebase Auth
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (!currentUser && new URLSearchParams(window.location.search).get('room')) {
+        signInAnon();
+      } else {
+        setUser(currentUser);
+        setIsAuthReady(true);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Firebase Connections & Room Sync
+  useEffect(() => {
+    if (!isAuthReady || !user) return;
+
+    // 1. Maintain connection document
+    const connRef = doc(db, 'connections', user.uid);
+    const updateConnection = async () => {
+      try {
+        const connData: any = {
+          lastActive: serverTimestamp()
+        };
+        if (roomId) {
+          connData.roomId = roomId;
+        }
+        await setDoc(connRef, connData);
+      } catch (e) {
+        console.error("Failed to update connection", e);
+      }
+    };
+    updateConnection();
+    const connInterval = setInterval(updateConnection, 30000); // Heartbeat every 30s
+
+    // 2. Listen to active connections
+    const qConnections = query(collection(db, 'connections'));
+    const unsubConnections = onSnapshot(qConnections, (snapshot) => {
+      // Count connections active in the last 2 minutes
+      const now = Date.now();
+      let count = 0;
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.lastActive) {
+          const lastActiveMs = data.lastActive.toMillis();
+          if (now - lastActiveMs < 120000) {
+            count++;
+          }
+        }
+      });
+      setActiveConnections(count);
+    });
+
+    // 3. Listen to Room Transcripts if roomId exists
+    let unsubTranscripts: () => void;
+    let unsubRoom: () => void;
+    if (roomId) {
+      const roomRef = doc(db, 'rooms', roomId);
+      unsubRoom = onSnapshot(roomRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setRoomCreatorId(docSnap.data().creatorId);
+        } else {
+          // Room deleted or doesn't exist
+          setRoomId(null);
+          setShowRoomDialog(true);
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      });
+
+      const qTranscripts = query(collection(db, 'rooms', roomId, 'transcripts'), orderBy('timestamp', 'asc'));
+      unsubTranscripts = onSnapshot(qTranscripts, (snapshot) => {
+        const firestoreTranscripts: Transcript[] = [];
+        snapshot.forEach(doc => {
+          firestoreTranscripts.push({ id: doc.id, ...doc.data() } as Transcript);
+        });
+        
+        // Merge with local non-final transcripts
+        setTranscripts(prev => {
+          const localNonFinal = prev.filter(t => !t.isFinal);
+          return [...firestoreTranscripts, ...localNonFinal];
+        });
+      });
+    }
+
+    return () => {
+      clearInterval(connInterval);
+      unsubConnections();
+      if (unsubTranscripts) unsubTranscripts();
+      if (unsubRoom) unsubRoom();
+    };
+  }, [isAuthReady, user, roomId]);
+
+  const handleCreateRoom = async () => {
+    if (!user) {
+      await signInWithGoogle();
+      return;
+    }
+    if (activeConnections >= 100) {
+      setCustomAlert({ message: "系統警告：目前線上人數已達 100 人上限，無法建立新連線。請稍後再試。", type: 'alert' });
+      return;
+    }
+    try {
+      const newRoomId = Math.random().toString(36).substring(2, 9);
+      await setDoc(doc(db, 'rooms', newRoomId), {
+        creatorId: user.uid,
+        createdAt: serverTimestamp()
+      });
+      setRoomId(newRoomId);
+      setShowRoomDialog(false);
+      window.history.replaceState({}, '', `?room=${newRoomId}`);
+    } catch (e) {
+      console.error(e);
+      setCustomAlert({ message: "建立房間失敗", type: 'alert' });
+    }
+  };
+
+  const handleJoinRoom = async () => {
+    if (!user) {
+      await signInAnon();
+    }
+    if (activeConnections >= 100) {
+      setCustomAlert({ message: "系統警告：目前線上人數已達 100 人上限，無法建立新連線。請稍後再試。", type: 'alert' });
+      return;
+    }
+    if (!joinRoomIdInput.trim()) return;
+    
+    try {
+      const roomSnap = await getDoc(doc(db, 'rooms', joinRoomIdInput.trim()));
+      if (roomSnap.exists()) {
+        setRoomId(joinRoomIdInput.trim());
+        setShowRoomDialog(false);
+        window.history.replaceState({}, '', `?room=${joinRoomIdInput.trim()}`);
+      } else {
+        setCustomAlert({ message: "找不到此房間代碼", type: 'alert' });
+      }
+    } catch (e) {
+      console.error(e);
+      setCustomAlert({ message: "加入房間失敗", type: 'alert' });
+    }
+  };
+
+  const handleClearRoomChat = async () => {
+    if (!roomId || !user || roomCreatorId !== user.uid) return;
+    setCustomAlert({
+      message: "確定要清除所有對話紀錄嗎？此操作無法復原。",
+      type: 'confirm',
+      onConfirm: async () => {
+        try {
+          const q = query(collection(db, 'rooms', roomId, 'transcripts'));
+          const snapshot = await getDocs(q);
+          const batch = writeBatch(db);
+          snapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+          });
+          await batch.commit();
+        } catch (e) {
+          console.error("清除失敗", e);
+        }
+      }
+    });
+  };
+
+  const handleShareUrl = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    setShareSuccess(true);
+    setTimeout(() => setShareSuccess(false), 2000);
+  };
+
 
   useEffect(() => {
     isAudioOutputEnabledRef.current = isAudioOutputEnabled;
@@ -243,10 +507,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('header_title_2', headerTitle2);
   }, [headerTitle2]);
-
-  useEffect(() => {
-    localStorage.setItem('ui_lang', uiLang);
-  }, [uiLang]);
 
   // 暗色模式切換
   useEffect(() => {
@@ -813,10 +1073,10 @@ Rules:
                 const processedText = convertToTwIfNeeded(cleanedText);
                 setTranscripts(prev => {
                   const last = prev[prev.length - 1];
-                  // 確保完整更新 original 欄位，改為「附加 (append)」而非「覆蓋 (replace)」，因為語音辨識結果是分段傳送的
+                  // inputTranscription 是累積的，所以直接替換
                   if (last && !last.isFinal) {
-                    // 如果原本是佔位符，就直接替換掉
-                    const newOriginal = last.original === "(...)" ? processedText : last.original + processedText;
+                    // 如果原本是佔位符，就直接替換掉。如果是累積的，也直接替換，因為 inputTranscription 是累積的
+                    const newOriginal = processedText;
                     return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: newOriginal } : t);
                   } else {
                     return [...prev, {
@@ -946,16 +1206,159 @@ Rules:
 
   return (
     <div className={cn("h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col overflow-hidden transition-colors duration-300", isDarkMode && "dark")}>
+      {/* Time Prompt Modal */}
+      {showTimePrompt && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[300] p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800 p-6 text-center">
+            <h3 className="text-lg font-bold mb-4">系統提示</h3>
+            <p className="text-slate-600 dark:text-slate-300 mb-6">連線已逾1 hr，請問是否繼續</p>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => {
+                  stopLiveSession();
+                  setShowTimePrompt(false);
+                }}
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium rounded-lg transition-colors"
+              >
+                Off-line
+              </button>
+              <button
+                onClick={() => setShowTimePrompt(false)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Alert/Confirm Dialog */}
+      {customAlert && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[300] p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800 p-6 text-center">
+            <h3 className="text-lg font-bold mb-4">{customAlert.type === 'confirm' ? '請確認' : '系統提示'}</h3>
+            <p className="text-slate-600 dark:text-slate-300 mb-6">{customAlert.message}</p>
+            <div className="flex justify-center gap-3">
+              {customAlert.type === 'confirm' && (
+                <button
+                  onClick={() => setCustomAlert(null)}
+                  className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium rounded-lg transition-colors"
+                >
+                  取消
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (customAlert.onConfirm) customAlert.onConfirm();
+                  setCustomAlert(null);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+              >
+                確定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Room Dialog */}
+      {showRoomDialog && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-2 text-center">多人協作翻譯室</h2>
+              <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">
+                建立專屬房間或加入現有房間，與他人即時共享翻譯結果。
+              </p>
+
+              <div className="space-y-6">
+                <button
+                  onClick={handleCreateRoom}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  <Users className="w-5 h-5" /> 建立新房間
+                </button>
+
+                <div className="relative flex items-center py-2">
+                  <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+                  <span className="flex-shrink-0 mx-4 text-slate-400 text-sm">或</span>
+                  <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    加入現有房間
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="輸入房間代碼"
+                      value={joinRoomIdInput}
+                      onChange={(e) => setJoinRoomIdInput(e.target.value)}
+                      className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    />
+                    <button
+                      onClick={handleJoinRoom}
+                      className="px-6 py-3 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white font-bold rounded-xl transition-all active:scale-[0.98] flex items-center gap-2"
+                    >
+                      <LogIn className="w-5 h-5" /> 加入
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-6 text-center text-xs text-slate-500">
+                目前線上總人數：{activeConnections} / 100
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 shadow-sm z-10 flex-shrink-0 transition-colors duration-300">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center min-w-[30px]">
               <span className="text-red-600 dark:text-red-500 font-bold text-xl tracking-wider">{getUiText('title1')}</span>
             </div>
             <h1 className="text-base font-semibold tracking-tight">{getUiText('title2')}</h1>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
+          
+          <div className="flex items-center gap-2 sm:gap-4 text-sm text-slate-500 dark:text-slate-400 font-medium overflow-x-auto pb-1 sm:pb-0">
+            {roomId && (
+              <div className="flex items-center gap-2 mr-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg">
+                <span className="text-xs font-medium">房間: {roomId}</span>
+                <button 
+                  onClick={handleShareUrl}
+                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-blue-600 dark:text-blue-400"
+                  title="複製邀請網址"
+                >
+                  {shareSuccess ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => {
+                    setRoomId(null);
+                    setTranscripts([]);
+                    setShowRoomDialog(true);
+                    window.history.replaceState({}, '', window.location.pathname);
+                  }}
+                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-red-600 dark:text-red-400"
+                  title="離開房間"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            
+            <div className="flex items-center gap-1 px-2" title="目前全站連線人數">
+              <Users className="w-4 h-4" />
+              <span className={cn("text-xs font-mono", activeConnections >= 90 ? "text-red-500" : "")}>
+                {activeConnections}/100
+              </span>
+            </div>
+
             <button 
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
@@ -1018,24 +1421,6 @@ Rules:
 
                 <hr className="border-slate-100 dark:border-slate-800" />
 
-                {/* 介面語言設定 */}
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Globe2 className="w-4 h-4 text-green-500" /> 介面語言設定
-                  </h4>
-                  <select
-                    value={uiLang}
-                    onChange={(e) => setUiLang(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  >
-                    {LANGUAGES.map(lang => (
-                      <option key={`ui-${lang.id}`} value={lang.id}>{lang.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <hr className="border-slate-100 dark:border-slate-800" />
-
                 {/* 頂部標題設定 */}
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -1070,7 +1455,8 @@ Rules:
                     setShowAdminSettings(false);
                     // 立即生效：如果正在錄音，重新初始化
                     if (isRecording) {
-                      initSpeechRecognition();
+                      stopLiveSession();
+                      setTimeout(() => startLiveSession(), 500);
                     }
                   }}
                   className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98]"
@@ -1138,24 +1524,6 @@ Rules:
 
                 <hr className="border-slate-100 dark:border-slate-800" />
 
-                {/* 介面語言設定 */}
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Globe2 className="w-4 h-4 text-green-500" /> 介面語言設定
-                  </h4>
-                  <select
-                    value={uiLang}
-                    onChange={(e) => setUiLang(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  >
-                    {LANGUAGES.map(lang => (
-                      <option key={`ui-${lang.id}`} value={lang.id}>{lang.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <hr className="border-slate-100 dark:border-slate-800" />
-
                 {/* 頂部標題設定 */}
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -1200,7 +1568,7 @@ Rules:
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             if (costPasswordInput === '3102') setIsCostUnlocked(true);
-                            else alert('密碼錯誤');
+                            else setCustomAlert({ message: '密碼錯誤', type: 'alert' });
                           }
                         }}
                         className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
@@ -1208,7 +1576,7 @@ Rules:
                       <button 
                         onClick={() => {
                           if (costPasswordInput === '3102') setIsCostUnlocked(true);
-                          else alert('密碼錯誤');
+                          else setCustomAlert({ message: '密碼錯誤', type: 'alert' });
                         }}
                         className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-lg transition-colors"
                       >
@@ -1261,7 +1629,8 @@ Rules:
                     setShowAdminSettings(false);
                     // 立即生效：如果正在錄音，重新初始化
                     if (isRecording) {
-                      initSpeechRecognition();
+                      stopLiveSession();
+                      setTimeout(() => startLiveSession(), 500);
                     }
                   }}
                   className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98]"
@@ -1440,9 +1809,16 @@ Rules:
                 {getUiText('share')}
               </button>
               <button
-                onClick={() => setShowClearConfirm(true)}
-                disabled={transcripts.length === 0}
+                onClick={() => {
+                  if (roomId) {
+                    handleClearRoomChat();
+                  } else {
+                    setShowClearConfirm(true);
+                  }
+                }}
+                disabled={transcripts.length === 0 || (!!roomId && (!user || roomCreatorId !== user?.uid))}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={roomId && (!user || roomCreatorId !== user?.uid) ? "只有房間建立者可以清除紀錄" : ""}
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 {getUiText('clear')}

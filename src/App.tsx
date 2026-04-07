@@ -1017,7 +1017,7 @@ export default function App() {
 
   // 自動滾動到最新對話
   useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    transcriptEndRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [transcripts]);
 
   // 清除資源
@@ -1133,9 +1133,6 @@ export default function App() {
 
       // iOS 設備友善提示
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      if (isIOS) {
-        alert("為了讓會議順利進行，請在稍後的視窗中點擊「允許」麥克風權限。");
-      }
 
       let stream;
       try {
@@ -1144,9 +1141,7 @@ export default function App() {
             echoCancellation: true,
             noiseSuppression: true, // 強化降噪
             autoGainControl: true,  // 強化自動增益
-            // @ts-ignore - 針對部分瀏覽器支援的進階設定
-            latency: 0,
-            sampleRate: 16000,
+            sampleRate: 44100, // 改為 44100 提高相容性
             channelCount: 1,
           } 
         });

@@ -240,10 +240,28 @@ export default function App() {
 
   const [isRecording, setIsRecording] = useState(false);
   const isRecordingRef = useRef(false);
+  const firestoreWorkerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
+
+  useEffect(() => {
+    // 初始化 Firestore Worker
+    firestoreWorkerRef.current = new Worker(new URL('./firestoreWorker.ts', import.meta.url));
+    
+    // 傳入 Firebase 設定
+    import('../firebase-applet-config.json').then((config) => {
+      firestoreWorkerRef.current?.postMessage({
+        type: 'init',
+        config: config.default
+      });
+    });
+    
+    return () => {
+      firestoreWorkerRef.current?.terminate();
+    };
+  }, []);
   const [isSpeakingEnabled, setIsSpeakingEnabled] = useState(false);
   const [localLang, setLocalLang] = useState(getDefaultLang);
   const [clientLang, setClientLang] = useState('en-US');
@@ -397,15 +415,20 @@ export default function App() {
             // 不再變更 ID，保持與 Firestore 的同步一致性
             // setTranscripts(prev => prev.map(t => t.id === transcriptToSave.id ? { ...t, id: `fs-${t.id}` } : t));
             
-            await setDoc(doc(db, 'rooms', roomId, 'transcripts', transcriptToSave.id), {
-              original: transcriptToSave.original,
-              translated: transcriptToSave.translated,
-              isFinal: true,
-              sourceLang: transcriptToSave.sourceLang,
-              targetLang: transcriptToSave.targetLang,
-              timestamp: serverTimestamp(),
-              speakerId: user.uid,
-              ...(userName ? { speakerName: userName } : {})
+            firestoreWorkerRef.current?.postMessage({
+              type: 'set',
+              collectionPath: `rooms/${roomId}/transcripts`,
+              docId: transcriptToSave.id,
+              data: {
+                original: transcriptToSave.original,
+                translated: transcriptToSave.translated,
+                isFinal: true,
+                sourceLang: transcriptToSave.sourceLang,
+                targetLang: transcriptToSave.targetLang,
+                timestamp: 'SERVER_TIMESTAMP',
+                speakerId: user.uid,
+                ...(userName ? { speakerName: userName } : {})
+              }
             });
           } catch (e) {
             console.error("Failed to save transcript to Firestore", e);
@@ -548,12 +571,16 @@ export default function App() {
           firestoreTranscripts.push({ id: doc.id, ...doc.data() } as Transcript);
         });
         
-        // Merge with local non-final transcripts
+        // 智能合併：Firestore 資料為主，本地非最終狀態為輔
         setTranscripts(prev => {
-          // 使用 ID 來過濾掉已經同步到 Firestore 的本地記錄
           const firestoreIds = new Set(firestoreTranscripts.map(t => t.id));
+          
+          // 1. 更新已存在的 Firestore 資料
+          // 2. 保留本地尚未同步的非最終狀態資料
           const localNonFinal = prev.filter(t => !t.isFinal && !firestoreIds.has(t.id));
-          return [...firestoreTranscripts, ...localNonFinal];
+          
+          // 確保排序穩定：Firestore 資料已按 timestamp 排序
+          return [...firestoreTranscripts, ...localNonFinal].sort((a, b) => a.createdAt - b.createdAt);
         });
       }, (error) => {
         console.error("Error listening to transcripts:", error);

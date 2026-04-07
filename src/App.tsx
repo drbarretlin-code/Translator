@@ -768,23 +768,43 @@ export default function App() {
     clientLangRef.current = clientLang;
   }, [clientLang]);
 
+  // 使用 ref 快取驗證狀態，避免重複請求
+  const apiKeyValidationCache = useRef<{ [key: string]: { type: 'paid' | 'free', projectName: string } }>({});
+
   const inferApiKeyInfo = async (key: string) => {
     if (!key) {
       setApiKeyType('free');
       setProjectName('');
       return;
     }
+
+    // 檢查快取
+    if (apiKeyValidationCache.current[key]) {
+      const cached = apiKeyValidationCache.current[key];
+      setApiKeyType(cached.type);
+      setProjectName(cached.projectName);
+      return;
+    }
+
     try {
       const ai = new GoogleGenAI({ apiKey: key });
       await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: "test",
       });
-      setApiKeyType('paid');
-      setProjectName('Gemini API');
+      
+      const result = { type: 'paid' as const, projectName: 'Gemini API' };
+      apiKeyValidationCache.current[key] = result;
+      setApiKeyType(result.type);
+      setProjectName(result.projectName);
     } catch (e) {
-      setApiKeyType('free');
-      setProjectName('Invalid Key');
+      // 驗證失敗時，不直接設為免費，而是保留舊狀態或設為未知，避免誤判
+      console.error("API Key validation failed:", e);
+      // 僅在明確錯誤時才更新為 free，避免瞬間網路錯誤導致誤判
+      if (apiKeyType !== 'paid') {
+        setApiKeyType('free');
+        setProjectName('Invalid Key');
+      }
     }
   };
 
@@ -792,7 +812,13 @@ export default function App() {
     localStorage.setItem('gemini_api_key', userApiKey);
     localStorage.setItem('api_key_type', apiKeyType);
     localStorage.setItem('project_name', projectName);
-    inferApiKeyInfo(userApiKey);
+    
+    // 使用 debounce 避免頻繁觸發驗證
+    const handler = setTimeout(() => {
+      inferApiKeyInfo(userApiKey);
+    }, 1000);
+    
+    return () => clearTimeout(handler);
   }, [userApiKey]);
 
   useEffect(() => {

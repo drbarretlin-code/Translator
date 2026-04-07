@@ -798,13 +798,9 @@ export default function App() {
       setApiKeyType(result.type);
       setProjectName(result.projectName);
     } catch (e) {
-      // 驗證失敗時，不直接設為免費，而是保留舊狀態或設為未知，避免誤判
       console.error("API Key validation failed:", e);
-      // 僅在明確錯誤時才更新為 free，避免瞬間網路錯誤導致誤判
-      if (apiKeyType !== 'paid') {
-        setApiKeyType('free');
-        setProjectName('Invalid Key');
-      }
+      // 移除自動降級邏輯，若驗證失敗，僅在快取中標記，不強制修改 UI 狀態
+      // 除非金鑰確實無效，否則維持使用者設定的狀態
     }
   };
 
@@ -2333,6 +2329,7 @@ Rules:
                   </div>
                 )}
                 followOutput="smooth"
+                initialTopMostItemIndex={memoizedTranscripts.length - 1}
               />
             )}
           </div>

@@ -239,6 +239,11 @@ export default function App() {
   const [customAlert, setCustomAlert] = useState<{message: string, type: 'alert' | 'confirm', onConfirm?: () => void} | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
+  const isRecordingRef = useRef(false);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
   const [isSpeakingEnabled, setIsSpeakingEnabled] = useState(false);
   const [localLang, setLocalLang] = useState(getDefaultLang);
   const [clientLang, setClientLang] = useState('en-US');
@@ -420,6 +425,35 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // 保持螢幕喚醒
+  const wakeLockRef = useRef<any>(null);
+  useEffect(() => {
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+          console.log('Wake Lock active');
+        }
+      } catch (err) {
+        console.error('Wake Lock request failed:', err);
+      }
+    };
+
+    if (isRecording) {
+      requestWakeLock();
+    } else if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
+
+    return () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    };
+  }, [isRecording]);
+
   // Firebase Connections & Room Sync
   useEffect(() => {
     if (!isAuthReady || !user) return;
@@ -478,7 +512,7 @@ export default function App() {
           if (data.projectName) {
             setProjectName(data.projectName);
           }
-          if (data.isSpeakingEnabled !== undefined) {
+          if (data.isSpeakingEnabled !== undefined && data.isSpeakingEnabled !== isRecordingRef.current) {
             setIsSpeakingEnabled(data.isSpeakingEnabled);
             setIsRecording(data.isSpeakingEnabled);
           }
@@ -1127,9 +1161,14 @@ export default function App() {
       }
 
       // Use default sample rate to ensure compatibility across all devices (especially Android)
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const audioCtx = new AudioContextClass();
       audioContextRef.current = audioCtx;
-      await audioCtx.resume();
+      
+      // 確保在 iOS 瀏覽器上 AudioContext 狀態為 running
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
 
       // iOS 設備友善提示
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);

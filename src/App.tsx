@@ -362,11 +362,8 @@ export default function App() {
   // Handle page unload for room creator
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
-        // Use sendBeacon or a synchronous-looking call to try to update the document before the page unloads
-        // Note: updateDoc is async, so it might not complete, but it's the best effort.
-        updateDoc(doc(db, 'rooms', roomId), { isClosed: true }).catch(console.error);
-      }
+      // 移除自動關閉房間邏輯，避免頁面重新整理時誤觸
+      console.log("Page unloading, not closing room automatically.");
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -485,7 +482,7 @@ export default function App() {
             setIsSpeakingEnabled(data.isSpeakingEnabled);
             setIsRecording(data.isSpeakingEnabled);
           }
-          if (data.isClosed) {
+          if (data.isClosed === true) {
             setCustomAlert({ 
               message: "房間已由建立者關閉，連線已失效。", 
               type: 'alert',
@@ -1073,11 +1070,8 @@ export default function App() {
     setIsRecording(false);
 
     if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
-      try {
-        await updateDoc(doc(db, 'rooms', roomId), { isClosed: true });
-      } catch (e) {
-        console.error("Failed to close room", e);
-      }
+      // 移除自動關閉房間邏輯，避免誤觸
+      console.log("Room session stopped, but not closing room automatically.");
     }
 
     if (processorRef.current) {

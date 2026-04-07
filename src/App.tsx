@@ -2279,32 +2279,30 @@ Rules:
                 </div>
               </div>
               
-              {user?.uid === roomCreatorId && (
-                <div className="flex items-center gap-2">
-                  {/* 狀態指示器 */}
-                  {isRecording && (
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg animate-pulse">
-                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Live</span>
-                    </div>
+              <div className="flex items-center gap-2">
+                {/* 狀態指示器 */}
+                {isRecording && (
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg animate-pulse">
+                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Live</span>
+                  </div>
+                )}
+                <button
+                  onClick={toggleRecording}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all duration-300 shadow-sm h-[32px]",
+                    isRecording
+                      ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 animate-pulse" 
+                      : "bg-blue-600 text-white hover:bg-blue-700 border border-transparent"
                   )}
-                  <button
-                    onClick={toggleRecording}
-                    className={cn(
-                      "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all duration-300 shadow-sm h-[32px]",
-                      isRecording
-                        ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 animate-pulse" 
-                        : "bg-blue-600 text-white hover:bg-blue-700 border border-transparent"
-                    )}
-                  >
-                    {isRecording ? (
-                      <><Square className="w-3.5 h-3.5 fill-current" /> <span className="text-xs">{getUiText('stop')}</span></>
-                    ) : (
-                      <><Mic className="w-3.5 h-3.5" /> <span className="text-xs">{getUiText('speaking')}</span></>
-                    )}
-                  </button>
-                </div>
-              )}
+                >
+                  {isRecording ? (
+                    <><Square className="w-3.5 h-3.5 fill-current" /> <span className="text-xs">{getUiText('stop')}</span></>
+                  ) : (
+                    <><Mic className="w-3.5 h-3.5" /> <span className="text-xs">{getUiText('speaking')}</span></>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* 右側國旗 (Client) */}

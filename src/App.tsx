@@ -1139,6 +1139,12 @@ export default function App() {
       audioContextRef.current = audioCtx;
       await audioCtx.resume();
 
+      // iOS 設備友善提示
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      if (isIOS) {
+        alert("為了讓會議順利進行，請在稍後的視窗中點擊「允許」麥克風權限。");
+      }
+
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ 
@@ -1268,25 +1274,21 @@ Rules:
 
             // 過濾非指定語系的字元 (避免 STT 幻覺產生韓文/日文等)
             const filterUnsupportedScripts = (text: string) => {
-              let filtered = text;
+              if (!text) return text;
+              
               const langs = [localLangRef.current, clientLangRef.current];
               const hasKorean = langs.some(l => l.startsWith('ko'));
               const hasJapanese = langs.some(l => l.startsWith('ja'));
               const hasChinese = langs.some(l => l.startsWith('zh'));
               const hasThai = langs.some(l => l.startsWith('th'));
               
-              if (!hasKorean) {
-                filtered = filtered.replace(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g, '');
-              }
-              if (!hasJapanese) {
-                filtered = filtered.replace(/[\u3040-\u309F\u30A0-\u30FF]/g, '');
-              }
-              if (!hasThai) {
-                filtered = filtered.replace(/[\u0E00-\u0E7F]/g, '');
-              }
-              if (!hasChinese && !hasJapanese) {
-                filtered = filtered.replace(/[\u4E00-\u9FFF]/g, '');
-              }
+              let filtered = text;
+              // 僅在必要時執行替換
+              if (!hasKorean) filtered = filtered.replace(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g, '');
+              if (!hasJapanese) filtered = filtered.replace(/[\u3040-\u309F\u30A0-\u30FF]/g, '');
+              if (!hasThai) filtered = filtered.replace(/[\u0E00-\u0E7F]/g, '');
+              if (!hasChinese && !hasJapanese) filtered = filtered.replace(/[\u4E00-\u9FFF]/g, '');
+              
               return filtered;
             };
 
@@ -2152,8 +2154,6 @@ Rules:
             </div>
           </div>
           
-
-// ... (in the render block)
           <div className="flex-1 overflow-hidden p-4 sm:p-5">
             {transcripts.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 space-y-4 min-h-[200px]">

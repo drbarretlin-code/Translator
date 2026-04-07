@@ -1503,7 +1503,7 @@ Rules:
                 const base64 = btoa(binary);
 
                 if (sessionRef.current) {
-                  sessionRef.current.send({ realtimeInput: { mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data: base64 }] } });
+                  sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
                 }
               };
 

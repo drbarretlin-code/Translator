@@ -24,17 +24,15 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
     </div>
 
     {/* 原文 */}
-    {t.isLocal && (
-      <div className="flex flex-col gap-1.5 min-h-[1.5rem]">
-        <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
-          {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
-          {t.original}
-        </div>
+    <div className="flex flex-col gap-1.5 min-h-[1.5rem]">
+      <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
+        {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
+        {t.original}
       </div>
-    )}
+    </div>
     
     {/* 分隔線 */}
-    {t.isLocal && <div className="h-px w-full bg-slate-200 dark:bg-slate-700 shrink-0"></div>}
+    <div className="h-px w-full bg-slate-200 dark:bg-slate-700 shrink-0"></div>
     
     {/* 翻譯文 */}
     <div className="flex flex-col gap-1.5 min-h-[1.5rem]">
@@ -1308,14 +1306,20 @@ export default function App() {
       // iOS 設備友善提示
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
+      // 嘗試在 iOS 上強制 resume AudioContext
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+
       let stream;
       try {
+        // iOS WebKit 要求 getUserMedia 必須在使用者互動後立即執行
         stream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
             echoCancellation: true,
-            noiseSuppression: true, // 強化降噪
-            autoGainControl: true,  // 強化自動增益
-            sampleRate: 44100, // 改為 44100 提高相容性
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: { ideal: 44100 },
             channelCount: 1,
           } 
         });

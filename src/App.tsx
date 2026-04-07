@@ -459,7 +459,7 @@ export default function App() {
       const lastTranscript = transcripts[transcripts.length - 1];
       if (lastTranscript && lastTranscript.isFinal && !lastTranscript.id.startsWith('fs-')) {
         // Mark as synced to avoid duplicate writes
-        const transcriptToSave = { ...lastTranscript };
+        const transcriptToSave = { ...lastTranscript, id: `fs-${lastTranscript.id}` };
         
         // We need to update local state to mark it as synced, but doing it here might cause infinite loop.
         // Instead, we can just write to Firestore. The snapshot listener will pull it back.
@@ -469,8 +469,8 @@ export default function App() {
         
         const saveToFirestore = async () => {
           try {
-            // 不再變更 ID，保持與 Firestore 的同步一致性
-            // setTranscripts(prev => prev.map(t => t.id === transcriptToSave.id ? { ...t, id: `fs-${t.id}` } : t));
+            // 更新本地 ID，確保與 Firestore 的同步一致性
+            setTranscripts(prev => prev.map(t => t.id === lastTranscript.id ? transcriptToSave : t));
             
             firestoreWorkerRef.current?.postMessage({
               type: 'set',
@@ -796,8 +796,7 @@ export default function App() {
 
   const inferApiKeyInfo = async (key: string) => {
     if (!key) {
-      setApiKeyType('free');
-      setProjectName('');
+      // 不強制設為 free，保留使用者最後一次設定的狀態或預設值
       return;
     }
 
@@ -822,8 +821,7 @@ export default function App() {
       setProjectName(result.projectName);
     } catch (e) {
       console.error("API Key validation failed:", e);
-      // 移除自動降級邏輯，若驗證失敗，僅在快取中標記，不強制修改 UI 狀態
-      // 除非金鑰確實無效，否則維持使用者設定的狀態
+      // 驗證失敗時，不強制降級，保持原狀態
     }
   };
 

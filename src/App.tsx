@@ -486,7 +486,7 @@ export default function App() {
         saveToFirestore();
       }
     }
-  }, [transcripts, roomId, user]);
+  }, [transcripts, roomId, user, userName]);
 
   // Firebase Auth
   useEffect(() => {
@@ -1479,7 +1479,8 @@ Rules:
                       sourceLang: "Auto",
                       targetLang: "Auto",
                       createdAt: Date.now(),
-                      isLocal: isRecording // 新增標記
+                      isLocal: isRecording,
+                      ...(userName ? { speakerName: userName } : {})
                     }];
                   }
                 });
@@ -1524,7 +1525,8 @@ Rules:
                       isTranslating: false,
                       sourceLang: "Auto",
                       targetLang: "Auto",
-                      createdAt: Date.now()
+                      createdAt: Date.now(),
+                      speakerName: "AI"
                     });
                   }
                   return newTranscripts;

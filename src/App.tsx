@@ -1320,26 +1320,18 @@ Rules:
               
               if (cleanedText) {
                 const processedText = convertToTwIfNeeded(cleanedText);
-                setTranscripts(prev => {
-                  const last = prev[prev.length - 1];
-                  // inputTranscription 是累積的，所以直接替換
-                  if (last && !last.isFinal) {
-                    // 如果原本是佔位符，就直接替換掉。如果是累積的，也直接替換，因為 inputTranscription 是累積的
-                    const newOriginal = processedText;
-                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: newOriginal } : t);
-                  } else {
-                    return [...prev, {
-                      id: Date.now().toString(),
-                      original: processedText,
-                      translated: "",
-                      isFinal: false,
-                      isTranslating: true,
-                      sourceLang: "Auto",
-                      targetLang: "Auto",
-                      createdAt: Date.now()
-                    }];
-                  }
-                });
+                const newTranscript = {
+                  id: Date.now().toString(),
+                  original: processedText,
+                  translated: "",
+                  isFinal: false,
+                  isTranslating: true,
+                  sourceLang: "Auto",
+                  targetLang: "Auto",
+                  createdAt: Date.now()
+                };
+                transcriptsBufferRef.current.push(newTranscript);
+                setTranscripts(prev => [...prev, newTranscript]);
               }
             }
 
@@ -1360,23 +1352,18 @@ Rules:
               }
 
               if (textContent) {
-                setTranscripts(prev => {
-                  try {
-                    const newTranscripts = [...prev];
-                    const lastIndex = newTranscripts.length - 1;
-                    if (lastIndex >= 0) {
-                      newTranscripts[lastIndex] = { 
-                        ...newTranscripts[lastIndex], 
-                        translated: (newTranscripts[lastIndex].translated || "") + textContent,
-                        isTranslating: false 
-                      };
-                    }
-                    return newTranscripts;
-                  } catch (e) {
-                    console.error("Error updating transcripts:", e);
-                    return prev;
-                  }
-                });
+                const newTranscript = {
+                  id: Date.now().toString(),
+                  original: "",
+                  translated: textContent,
+                  isFinal: false,
+                  isTranslating: false,
+                  sourceLang: "Auto",
+                  targetLang: "Auto",
+                  createdAt: Date.now()
+                };
+                transcriptsBufferRef.current.push(newTranscript);
+                setTranscripts(prev => [...prev, newTranscript]);
               }
             }
 

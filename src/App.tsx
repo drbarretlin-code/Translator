@@ -1601,7 +1601,11 @@ Rules:
           },
           onerror: (err: any) => {
             console.error("Live API Error:", err);
-            setErrorMsg("連線發生錯誤");
+            if (err.message?.includes("permission")) {
+              setErrorMsg("Live API 權限不足，請確認 API 金鑰是否有效且已啟用相關服務。");
+            } else {
+              setErrorMsg("連線發生錯誤");
+            }
             stopLiveSession();
           }
         },

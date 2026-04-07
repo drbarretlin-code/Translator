@@ -246,6 +246,31 @@ export default function App() {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
 
+      const lastMessageTimeRef = useRef<number>(Date.now());
+      const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+      // 啟動心跳監測
+      const startHeartbeat = () => {
+        heartbeatIntervalRef.current = setInterval(() => {
+          if (!isLiveRef.current) return;
+          
+          const now = Date.now();
+          if (now - lastMessageTimeRef.current > 10000) { // 10 秒沒有訊息
+            console.warn("Live Session heartbeat timeout, attempting reconnect...");
+            stopLiveSession();
+            startLiveSession(); // 重新啟動
+          }
+        }, 5000);
+      };
+
+      // 停止心跳監測
+      const stopHeartbeat = () => {
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+          heartbeatIntervalRef.current = null;
+        }
+      };
+
   useEffect(() => {
     // 初始化 Firestore Worker
     firestoreWorkerRef.current = new Worker(new URL('./firestoreWorker.ts', import.meta.url));
@@ -1129,6 +1154,7 @@ export default function App() {
   const stopLiveSession = async () => {
     isLiveRef.current = false;
     setIsRecording(false);
+    stopHeartbeat();
 
     if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
       // 移除自動關閉房間邏輯，避免誤觸
@@ -1181,6 +1207,8 @@ export default function App() {
     setIsRecording(true);
     isLiveRef.current = true;
     setErrorMsg(null);
+    lastMessageTimeRef.current = Date.now();
+    startHeartbeat();
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -1316,7 +1344,12 @@ Rules:
             }
           },
           onmessage: (message: any) => {
-            console.log("Received message:", JSON.stringify(message, null, 2));
+            lastMessageTimeRef.current = Date.now();
+            // 簡化日誌，避免過多輸出
+            if (message.serverContent?.inputTranscription?.text || message.serverContent?.modelTurn?.parts) {
+              console.log("Received message content:", JSON.stringify(message.serverContent, null, 2));
+            }
+
             // 轉換文字為繁體中文 (如果設定包含 zh-TW)
             const convertToTwIfNeeded = (text: string) => {
               if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
@@ -1342,7 +1375,6 @@ Rules:
               if (!hasThai) filtered = filtered.replace(/[\u0E00-\u0E7F]/g, '');
               if (!hasChinese && !hasJapanese) filtered = filtered.replace(/[\u4E00-\u9FFF]/g, '');
               
-              console.log(`Filtering: original="${text}", filtered="${filtered}", langs=${JSON.stringify(langs)}`);
               return filtered;
             };
 

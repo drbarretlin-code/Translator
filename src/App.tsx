@@ -243,24 +243,6 @@ export default function App() {
   const [localLang, setLocalLang] = useState(getDefaultLang);
   const [clientLang, setClientLang] = useState('en-US');
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
-  const transcriptsBufferRef = useRef<any[]>([]);
-  const [displayTranscripts, setDisplayTranscripts] = useState<any[]>([]);
-
-  // 階段二：批次處理 (每 150ms 更新一次 UI)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (transcriptsBufferRef.current.length > 0) {
-        const newItems = [...transcriptsBufferRef.current];
-        transcriptsBufferRef.current = [];
-        
-        setDisplayTranscripts(prev => {
-          // 階段三：穩定追加 (移除排序，只追加)
-          return [...prev, ...newItems];
-        });
-      }
-    }, 150);
-    return () => clearInterval(interval);
-  }, []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
@@ -272,7 +254,7 @@ export default function App() {
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [showResponsivenessInfo, setShowResponsivenessInfo] = useState(false);
 
-  const memoizedTranscripts = displayTranscripts;
+  const memoizedTranscripts = transcripts;
   
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
@@ -1320,18 +1302,26 @@ Rules:
               
               if (cleanedText) {
                 const processedText = convertToTwIfNeeded(cleanedText);
-                const newTranscript = {
-                  id: Date.now().toString(),
-                  original: processedText,
-                  translated: "",
-                  isFinal: false,
-                  isTranslating: true,
-                  sourceLang: "Auto",
-                  targetLang: "Auto",
-                  createdAt: Date.now()
-                };
-                transcriptsBufferRef.current.push(newTranscript);
-                setTranscripts(prev => [...prev, newTranscript]);
+                setTranscripts(prev => {
+                  const last = prev[prev.length - 1];
+                  // inputTranscription 是累積的，所以直接替換
+                  if (last && !last.isFinal) {
+                    // 如果原本是佔位符，就直接替換掉。如果是累積的，也直接替換，因為 inputTranscription 是累積的
+                    const newOriginal = processedText;
+                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: newOriginal } : t);
+                  } else {
+                    return [...prev, {
+                      id: Date.now().toString(),
+                      original: processedText,
+                      translated: "",
+                      isFinal: false,
+                      isTranslating: true,
+                      sourceLang: "Auto",
+                      targetLang: "Auto",
+                      createdAt: Date.now()
+                    }];
+                  }
+                });
               }
             }
 
@@ -1352,18 +1342,23 @@ Rules:
               }
 
               if (textContent) {
-                const newTranscript = {
-                  id: Date.now().toString(),
-                  original: "",
-                  translated: textContent,
-                  isFinal: false,
-                  isTranslating: false,
-                  sourceLang: "Auto",
-                  targetLang: "Auto",
-                  createdAt: Date.now()
-                };
-                transcriptsBufferRef.current.push(newTranscript);
-                setTranscripts(prev => [...prev, newTranscript]);
+                setTranscripts(prev => {
+                  try {
+                    const newTranscripts = [...prev];
+                    const lastIndex = newTranscripts.length - 1;
+                    if (lastIndex >= 0) {
+                      newTranscripts[lastIndex] = { 
+                        ...newTranscripts[lastIndex], 
+                        translated: (newTranscripts[lastIndex].translated || "") + textContent,
+                        isTranslating: false 
+                      };
+                    }
+                    return newTranscripts;
+                  } catch (e) {
+                    console.error("Error updating transcripts:", e);
+                    return prev;
+                  }
+                });
               }
             }
 

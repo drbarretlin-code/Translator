@@ -1316,7 +1316,7 @@ Rules:
             }
           },
           onmessage: (message: any) => {
-            console.log("Received message:", message);
+            console.log("Received message:", JSON.stringify(message, null, 2));
             // 轉換文字為繁體中文 (如果設定包含 zh-TW)
             const convertToTwIfNeeded = (text: string) => {
               if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
@@ -1342,6 +1342,7 @@ Rules:
               if (!hasThai) filtered = filtered.replace(/[\u0E00-\u0E7F]/g, '');
               if (!hasChinese && !hasJapanese) filtered = filtered.replace(/[\u4E00-\u9FFF]/g, '');
               
+              console.log(`Filtering: original="${text}", filtered="${filtered}", langs=${JSON.stringify(langs)}`);
               return filtered;
             };
 

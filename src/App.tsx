@@ -1237,6 +1237,19 @@ export default function App() {
 
       // Use default sample rate to ensure compatibility across all devices (especially Android)
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      
+      // 確保先清理舊的 AudioContext
+      if (audioContextRef.current) {
+        try {
+          if (audioContextRef.current.state !== 'closed') {
+            await audioContextRef.current.close();
+          }
+        } catch (e) {
+          console.error("Error closing existing AudioContext:", e);
+        }
+        audioContextRef.current = null;
+      }
+
       const audioCtx = new AudioContextClass();
       audioContextRef.current = audioCtx;
       

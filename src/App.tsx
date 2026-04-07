@@ -784,7 +784,9 @@ export default function App() {
 
   useEffect(() => {
     // 初始化 Socket.io 連線
-    socketRef.current = io();
+    socketRef.current = io({
+      path: "/socket.io"
+    });
 
     const ydoc = ydocRef.current;
 

@@ -243,6 +243,24 @@ export default function App() {
   const [localLang, setLocalLang] = useState(getDefaultLang);
   const [clientLang, setClientLang] = useState('en-US');
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
+  const transcriptsBufferRef = useRef<any[]>([]);
+  const [displayTranscripts, setDisplayTranscripts] = useState<any[]>([]);
+
+  // 階段二：批次處理 (每 150ms 更新一次 UI)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (transcriptsBufferRef.current.length > 0) {
+        const newItems = [...transcriptsBufferRef.current];
+        transcriptsBufferRef.current = [];
+        
+        setDisplayTranscripts(prev => {
+          // 階段三：穩定追加 (移除排序，只追加)
+          return [...prev, ...newItems];
+        });
+      }
+    }, 150);
+    return () => clearInterval(interval);
+  }, []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
@@ -254,16 +272,7 @@ export default function App() {
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [showResponsivenessInfo, setShowResponsivenessInfo] = useState(false);
 
-  const memoizedTranscripts = useMemo(() => {
-    return [...transcripts].sort((a, b) => {
-      const getTime = (t: any) => {
-        if (t.createdAt) return new Date(t.createdAt).getTime();
-        if (t.timestamp?.toMillis) return t.timestamp.toMillis();
-        return 0;
-      };
-      return getTime(a) - getTime(b);
-    });
-  }, [transcripts]);
+  const memoizedTranscripts = displayTranscripts;
   
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
@@ -1109,6 +1118,13 @@ export default function App() {
       }).catch(() => {});
       sessionPromiseRef.current = null;
     }
+    
+    // 徹底釋放 AudioContext 資源
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(console.error);
+      audioContextRef.current = null;
+    }
+    
     nextPlayTimeRef.current = 0;
   };
 

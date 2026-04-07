@@ -261,15 +261,17 @@ export default function App() {
           if (now - lastMessageTimeRef.current > 10000) {
             console.warn("Live Session heartbeat timeout, attempting reconnect...");
             
-            // 確保徹底清理
+            // 暫停當前狀態
+            const wasLive = isLiveRef.current;
             stopLiveSession();
             
             // 延遲重連，確保資源已釋放
-            setTimeout(() => {
-              if (isLiveRef.current) {
-                startLiveSession();
-              }
-            }, 1000);
+            if (wasLive) {
+              setTimeout(async () => {
+                isLiveRef.current = true;
+                await startLiveSession();
+              }, 1000);
+            }
           }
         }, 2000); // 每 2 秒檢查一次
       };
@@ -730,6 +732,8 @@ export default function App() {
             batch.delete(doc.ref);
           });
           await batch.commit();
+          // 修正：明確清空本地狀態
+          setTranscripts([]);
         } catch (e) {
           console.error("清除失敗", e);
         }

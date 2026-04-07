@@ -750,7 +750,7 @@ export default function App() {
   };
 
   const handleShareUrl = () => {
-    const url = window.location.href;
+    const url = `https://translator-navy-pi.vercel.app/?room=${roomId}`;
     navigator.clipboard.writeText(url);
     setShareSuccess(true);
     setTimeout(() => setShareSuccess(false), 2000);
@@ -1756,10 +1756,10 @@ Rules:
             </button>
             <h3 className="text-xl font-bold mb-6 text-slate-800 dark:text-slate-100">掃描加入房間</h3>
             <div className="bg-white p-4 rounded-xl inline-block shadow-sm border border-slate-100">
-              <QRCodeSVG value={window.location.href} size={240} level="H" includeMargin={true} />
+              <QRCodeSVG value={`https://translator-navy-pi.vercel.app/?room=${roomId}`} size={240} level="H" includeMargin={true} />
             </div>
             <p className="mt-6 text-sm text-slate-500 dark:text-slate-400 break-all max-w-[280px] mx-auto">
-              {window.location.href}
+              {`https://translator-navy-pi.vercel.app/?room=${roomId}`}
             </p>
           </div>
         </div>

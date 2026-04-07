@@ -19,7 +19,7 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
   >
     {/* ID 與時間標籤 */}
     <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono h-4">
-      <span>{t.speakerName || 'User'}</span>
+      <span>{t.speakerName || '匿名'}</span>
       <span>{new Date(t.createdAt || t.timestamp?.toMillis() || Date.now()).toLocaleTimeString('zh-TW', { minute: '2-digit', second: '2-digit' })}</span>
     </div>
 
@@ -1118,7 +1118,7 @@ export default function App() {
     if (transcripts.length === 0) return;
     
     const text = transcripts.map(t => {
-      const speaker = t.speakerName ? `[${t.speakerName}] ` : '';
+      const speaker = `[${t.speakerName || '匿名'}] `;
       return `${speaker}原文：${t.original}\n翻譯：${t.translated}`;
     }).join('\n\n---\n\n');
     

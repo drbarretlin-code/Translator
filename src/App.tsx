@@ -257,12 +257,21 @@ export default function App() {
           if (!isLiveRef.current) return;
           
           const now = Date.now();
-          if (now - lastMessageTimeRef.current > 10000) { // 10 秒沒有訊息
+          // 縮短檢查間隔，並將超時門檻設為 10 秒
+          if (now - lastMessageTimeRef.current > 10000) {
             console.warn("Live Session heartbeat timeout, attempting reconnect...");
+            
+            // 確保徹底清理
             stopLiveSession();
-            startLiveSession(); // 重新啟動
+            
+            // 延遲重連，確保資源已釋放
+            setTimeout(() => {
+              if (isLiveRef.current) {
+                startLiveSession();
+              }
+            }, 1000);
           }
-        }, 5000);
+        }, 2000); // 每 2 秒檢查一次
       };
 
       // 停止心跳監測

@@ -1383,9 +1383,10 @@ Rules:
             const inTranscript = message.serverContent?.inputTranscription;
             if (inTranscript?.text) {
               let cleanedText = filterUnsupportedScripts(inTranscript.text);
-              // 如果過濾後為空，但原本有字，給予一個佔位符，避免畫面出現奇怪的空白，等待 AI 翻譯
+              
+              // 修正：即使過濾後只剩下標點符號，也應該顯示，避免被誤判為無效內容
               if (!cleanedText && inTranscript.text.trim()) {
-                cleanedText = "(...)";
+                cleanedText = inTranscript.text.trim();
               }
               
               if (cleanedText) {
@@ -1395,8 +1396,7 @@ Rules:
                   // inputTranscription 是累積的，所以直接替換
                   if (last && !last.isFinal) {
                     // 如果原本是佔位符，就直接替換掉。如果是累積的，也直接替換，因為 inputTranscription 是累積的
-                    const newOriginal = processedText;
-                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: newOriginal } : t);
+                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: processedText } : t);
                   } else {
                     return [...prev, {
                       id: Date.now().toString(),
@@ -1431,21 +1431,30 @@ Rules:
 
               if (textContent) {
                 setTranscripts(prev => {
-                  try {
-                    const newTranscripts = [...prev];
-                    const lastIndex = newTranscripts.length - 1;
-                    if (lastIndex >= 0) {
-                      newTranscripts[lastIndex] = { 
-                        ...newTranscripts[lastIndex], 
-                        translated: (newTranscripts[lastIndex].translated || "") + textContent,
-                        isTranslating: false 
-                      };
-                    }
-                    return newTranscripts;
-                  } catch (e) {
-                    console.error("Error updating transcripts:", e);
-                    return prev;
+                  const newTranscripts = [...prev];
+                  const lastIndex = newTranscripts.length - 1;
+                  
+                  // 如果最後一筆是使用者輸入且尚未完成，則將 AI 回應附加到該筆的 translated 欄位
+                  if (lastIndex >= 0 && !newTranscripts[lastIndex].isFinal) {
+                    newTranscripts[lastIndex] = { 
+                      ...newTranscripts[lastIndex], 
+                      translated: (newTranscripts[lastIndex].translated || "") + textContent,
+                      isTranslating: false 
+                    };
+                  } else {
+                    // 否則，建立一筆新的 AI 回應
+                    newTranscripts.push({
+                      id: Date.now().toString(),
+                      original: "",
+                      translated: textContent,
+                      isFinal: false,
+                      isTranslating: false,
+                      sourceLang: "Auto",
+                      targetLang: "Auto",
+                      createdAt: Date.now()
+                    });
                   }
+                  return newTranscripts;
                 });
               }
             }

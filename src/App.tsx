@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { io, Socket } from 'socket.io-client';
+import * as Y from 'yjs';
 import { Virtuoso } from 'react-virtuoso';
 import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
@@ -7,6 +9,7 @@ import { cn } from './lib/utils';
 import { db, auth, signInWithGoogle, signInAnon } from './firebase';
 import { collection, doc, setDoc, onSnapshot, query, orderBy, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import toast, { Toaster } from 'react-hot-toast';
 
 // 獨立的 TranscriptItem 元件，使用 React.memo 優化渲染
 const TranscriptItem = React.memo(({ t }: { t: any }) => (
@@ -341,7 +344,7 @@ export default function App() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const nextPlayTimeRef = useRef<number>(0);
-  const sessionPromiseRef = useRef<any>(null);
+  const sessionRef = useRef<any>(null);
   const isLiveRef = useRef<boolean>(false);
   
   const localLangRef = useRef<string>(localLang);
@@ -767,18 +770,109 @@ export default function App() {
     localLangRef.current = localLang;
   }, [localLang]);
 
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+  
+  const roomIdRef = useRef(roomId);
   useEffect(() => {
-    clientLangRef.current = clientLang;
-  }, [clientLang]);
+    roomIdRef.current = roomId;
+  }, [roomId]);
+
+  // Yjs Foundation
+  const ydocRef = useRef<Y.Doc>(new Y.Doc());
+  const yTranscriptsRef = useRef<Y.Array<any>>(ydocRef.current.getArray('transcripts'));
+
+  useEffect(() => {
+    // 初始化 Socket.io 連線
+    socketRef.current = io();
+
+    const ydoc = ydocRef.current;
+
+    // Listen for local Yjs updates and broadcast them
+    ydoc.on('update', (update) => {
+      if (roomIdRef.current) {
+        socketRef.current?.emit('yjs-update', { roomId: roomIdRef.current, update });
+      }
+    });
+
+    socketRef.current.on('yjs-update', (update: ArrayBuffer) => {
+      // Apply remote updates to local Yjs document
+      Y.applyUpdate(ydoc, new Uint8Array(update));
+    });
+
+    socketRef.current.on('connect', () => {
+      console.log('Socket connected:', socketRef.current?.id);
+      setIsSocketConnected(true);
+    });
+
+    socketRef.current.on('disconnect', () => {
+      console.log('Socket disconnected');
+      setIsSocketConnected(false);
+    });
+
+    socketRef.current.on('translation chunk', (data) => {
+      setTranscripts(prev => {
+        const newTranscripts = [...prev];
+        const lastIndex = newTranscripts.length - 1;
+        if (lastIndex >= 0) {
+          newTranscripts[lastIndex] = {
+            ...newTranscripts[lastIndex],
+            translated: (newTranscripts[lastIndex].translated || "") + data.chunk,
+            isTranslating: true
+          };
+        }
+        return newTranscripts;
+      });
+    });
+
+    socketRef.current.on('translation end', () => {
+      setTranscripts(prev => {
+        const newTranscripts = [...prev];
+        const lastIndex = newTranscripts.length - 1;
+        if (lastIndex >= 0) {
+          newTranscripts[lastIndex] = {
+            ...newTranscripts[lastIndex],
+            isTranslating: false
+          };
+        }
+        return newTranscripts;
+      });
+    });
+
+    socketRef.current.on('translation error', (data) => {
+      console.error("Translation error from server:", data.error);
+      toast.error(`翻譯失敗: ${data.error}`);
+      setErrorMsg(`翻譯失敗: ${data.error}`);
+      setTranscripts(prev => {
+        const newTranscripts = [...prev];
+        const lastIndex = newTranscripts.length - 1;
+        if (lastIndex >= 0) {
+          newTranscripts[lastIndex] = {
+            ...newTranscripts[lastIndex],
+            isTranslating: false,
+            translated: newTranscripts[lastIndex].translated || "(翻譯失敗)"
+          };
+        }
+        return newTranscripts;
+      });
+    });
+
+    return () => {
+      socketRef.current?.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (socketRef.current && roomId && isSocketConnected) {
+      socketRef.current.emit('join-room', roomId);
+    }
+  }, [roomId, isSocketConnected]);
 
   // 使用 ref 快取驗證狀態，避免重複請求
   const apiKeyValidationCache = useRef<{ [key: string]: { type: 'paid' | 'free', projectName: string } }>({});
 
   const inferApiKeyInfo = async (key: string) => {
-    if (!key) {
-      // 不強制設為 free，保留使用者最後一次設定的狀態或預設值
-      return;
-    }
+    if (!key) return;
 
     // 檢查快取
     if (apiKeyValidationCache.current[key]) {
@@ -789,19 +883,34 @@ export default function App() {
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey: key });
-      await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: "test",
+      // 使用 fetch 直接呼叫 API 以獲取 Response Headers
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "test" }] }] })
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Key validation failed: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      // 檢查速率限制標頭 (x-ratelimit-limit)
+      const rateLimit = response.headers.get('x-ratelimit-limit');
+      const limit = rateLimit ? parseInt(rateLimit, 10) : 0;
       
-      const result = { type: 'paid' as const, projectName: 'Gemini API' };
+      // 根據速率限制判斷：免費版通常較低 (例如 15 RPM)，付費版較高
+      const type = limit > 50 ? 'paid' : 'free';
+      const projectName = 'Gemini API';
+
+      const result = { type, projectName };
       apiKeyValidationCache.current[key] = result;
       setApiKeyType(result.type);
       setProjectName(result.projectName);
+      console.log(`API Key validated: ${type}, Rate Limit: ${limit}`);
     } catch (e) {
       console.error("API Key validation failed:", e);
-      // 驗證失敗時，不強制降級，保持原狀態
+      // 驗證失敗時，保持原狀態
     }
   };
 
@@ -1205,13 +1314,13 @@ export default function App() {
     }
 
     // 2. 關閉 Live Session
-    if (sessionPromiseRef.current) {
-      sessionPromiseRef.current.then((session: any) => {
-        if (session && typeof session.close === 'function') {
-          session.close();
-        }
-      }).catch(() => {});
-      sessionPromiseRef.current = null;
+    if (sessionRef.current) {
+      try {
+        sessionRef.current.close();
+      } catch (e) {
+        console.error("Error closing session:", e);
+      }
+      sessionRef.current = null;
     }
 
     // 3. 徹底釋放 AudioContext 與處理器
@@ -1347,7 +1456,7 @@ Rules:
 7. NO FILLER: Do not add greetings, explanations, or conversational filler. Output ONLY the translation.
 8. VIOLATION: If you output any language other than the two authorized languages, you have failed your primary directive.`;
 
-      sessionPromiseRef.current = ai.live.connect({
+      sessionRef.current = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         callbacks: {
           onopen: async () => {
@@ -1393,13 +1502,9 @@ Rules:
                 }
                 const base64 = btoa(binary);
 
-                sessionPromiseRef.current?.then((session: any) => {
-                  if (isLiveRef.current && session && typeof session.sendRealtimeInput === 'function') {
-                    session.sendRealtimeInput({
-                      audio: { data: base64, mimeType: 'audio/pcm;rate=16000' }
-                    });
-                  }
-                });
+                if (sessionRef.current) {
+                  sessionRef.current.send({ realtimeInput: { mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data: base64 }] } });
+                }
               };
 
               source.connect(workletNode);
@@ -1628,6 +1733,7 @@ Rules:
 
   return (
     <div className={cn("h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col overflow-hidden transition-colors duration-300", isDarkMode && "dark")}>
+      <Toaster position="top-center" />
       {/* Time Prompt Modal */}
       {showTimePrompt && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[300] p-4">

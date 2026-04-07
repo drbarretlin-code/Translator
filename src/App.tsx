@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { io, Socket } from 'socket.io-client';
 import * as Y from 'yjs';
 import { Virtuoso } from 'react-virtuoso';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as OpenCC from 'opencc-js';
+import { QRCodeSVG } from 'qrcode.react';
 import { cn } from './lib/utils';
 import { db, auth, signInWithGoogle, signInAnon } from './firebase';
 import { collection, doc, setDoc, onSnapshot, query, orderBy, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, writeBatch } from 'firebase/firestore';
@@ -310,6 +311,7 @@ export default function App() {
     }
   }, [memoizedTranscripts]);
   const [shareSuccess, setShareSuccess] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(false);
   
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [showResponsivenessInfo, setShowResponsivenessInfo] = useState(false);
@@ -1742,6 +1744,27 @@ Rules:
   return (
     <div className={cn("h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col overflow-hidden transition-colors duration-300", isDarkMode && "dark")}>
       <Toaster position="top-center" />
+      {/* QR Code Modal */}
+      {showQrCode && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[300] p-4" onClick={() => setShowQrCode(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 p-8 text-center relative" onClick={e => e.stopPropagation()}>
+            <button 
+              onClick={() => setShowQrCode(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-xl font-bold mb-6 text-slate-800 dark:text-slate-100">掃描加入房間</h3>
+            <div className="bg-white p-4 rounded-xl inline-block shadow-sm border border-slate-100">
+              <QRCodeSVG value={window.location.href} size={240} level="H" includeMargin={true} />
+            </div>
+            <p className="mt-6 text-sm text-slate-500 dark:text-slate-400 break-all max-w-[280px] mx-auto">
+              {window.location.href}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Time Prompt Modal */}
       {showTimePrompt && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[300] p-4">
@@ -1914,16 +1937,19 @@ Rules:
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{projectName}</span>
                   </>
                 )}
-                <span className="text-slate-400">|</span>
-                <span className={cn("text-xs font-medium", apiKeyType === 'paid' ? "text-amber-600" : "text-green-600")}>
-                  {apiKeyType === 'paid' ? '付費版' : '免費版'}
-                </span>
                 <button 
                   onClick={handleShareUrl}
-                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-blue-600 dark:text-blue-400"
+                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-blue-600 dark:text-blue-400 ml-2"
                   title="複製邀請網址"
                 >
                   {shareSuccess ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                </button>
+                <button 
+                  onClick={() => setShowQrCode(true)}
+                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-blue-600 dark:text-blue-400"
+                  title="顯示 QR Code"
+                >
+                  <QrCode className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => {

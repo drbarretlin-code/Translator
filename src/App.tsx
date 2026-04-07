@@ -287,6 +287,10 @@ export default function App() {
   useEffect(() => {
     // 初始化 Firestore Worker
     firestoreWorkerRef.current = new Worker(new URL('./firestoreWorker.ts', import.meta.url));
+    console.log('Firestore worker initialized in App.tsx');
+    firestoreWorkerRef.current.onmessage = (e) => {
+      console.log('Firestore worker message:', e.data);
+    };
     
     // 傳入 Firebase 設定
     import('../firebase-applet-config.json').then((config) => {
@@ -381,8 +385,12 @@ export default function App() {
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isRecording) {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isRecording && !isIOS) {
       startLiveSession();
+    }
+    
+    if (isRecording) {
       interval = setInterval(() => {
         setSessionSeconds(prev => {
           const newVal = prev + 1;
@@ -506,8 +514,12 @@ export default function App() {
           wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
           console.log('Wake Lock active');
         }
-      } catch (err) {
-        console.error('Wake Lock request failed:', err);
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError') {
+          console.warn('Wake Lock permission denied, skipping.');
+        } else {
+          console.error('Wake Lock request failed:', err);
+        }
       }
     };
 

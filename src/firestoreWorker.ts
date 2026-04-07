@@ -11,16 +11,19 @@ self.onmessage = async (event) => {
   const { type, config, collectionPath, docId, data } = event.data;
 
   if (type === 'init') {
+    console.log('Firestore worker initializing...');
     const app = (self as any).firebase.initializeApp(config);
     db = (self as any).firebase.firestore(app);
     // 處理 named database
     if (config.firestoreDatabaseId) {
       db = (self as any).firebase.firestore(app, config.firestoreDatabaseId);
     }
+    console.log('Firestore worker initialized.');
     return;
   }
 
   try {
+    console.log('Firestore worker processing:', type, collectionPath, docId);
     const docRef = db.collection(collectionPath).doc(docId);
     
     // 處理 timestamp 轉換
@@ -31,8 +34,10 @@ self.onmessage = async (event) => {
 
     if (type === 'set') {
       await docRef.set(processedData, { merge: true });
+      console.log('Firestore set successful');
     } else if (type === 'update') {
       await docRef.update(processedData);
+      console.log('Firestore update successful');
     }
   } catch (error) {
     console.error('Firestore worker error:', error);

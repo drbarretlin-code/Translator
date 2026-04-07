@@ -785,16 +785,27 @@ export default function App() {
   useEffect(() => {
     // 初始化 Socket.io 連線
     socketRef.current = io({
-      path: "/socket.io"
+      path: "/socket.io",
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      transports: ['websocket'] // 強制使用 websocket 以提升穩定性
     });
 
     const ydoc = ydocRef.current;
 
     // Listen for local Yjs updates and broadcast them
+    let updateTimeout: NodeJS.Timeout | null = null;
     ydoc.on('update', (update) => {
-      if (roomIdRef.current) {
-        socketRef.current?.emit('yjs-update', { roomId: roomIdRef.current, update });
-      }
+      if (updateTimeout) return;
+      updateTimeout = setTimeout(() => {
+        if (roomIdRef.current) {
+          socketRef.current?.emit('yjs-update', { roomId: roomIdRef.current, update });
+        }
+        updateTimeout = null;
+      }, 100); // 節流：每 100ms 最多發送一次更新
     });
 
     socketRef.current.on('yjs-update', (update: ArrayBuffer) => {
@@ -1723,14 +1734,9 @@ Rules:
     }
   };
 
-  // 切換錄音狀態
+  // 切換錄音狀態 (本地端控制)
   const toggleRecording = async () => {
-    if (!roomId || user?.uid !== roomCreatorId) return;
-    
-    const newRecordingState = !isRecording;
-    await updateDoc(doc(db, 'rooms', roomId), {
-      isSpeakingEnabled: newRecordingState
-    });
+    setIsRecording(prev => !prev);
   };
 
   return (

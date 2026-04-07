@@ -1348,9 +1348,11 @@ Rules:
                 const base64 = btoa(binary);
 
                 sessionPromiseRef.current?.then((session: any) => {
-                  session.sendRealtimeInput({
-                    audio: { data: base64, mimeType: 'audio/pcm;rate=16000' }
-                  });
+                  if (isLiveRef.current && session && typeof session.sendRealtimeInput === 'function') {
+                    session.sendRealtimeInput({
+                      audio: { data: base64, mimeType: 'audio/pcm;rate=16000' }
+                    });
+                  }
                 });
               };
 

@@ -310,12 +310,23 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const uiLang = React.useMemo(() => getDefaultLang(), []);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const virtuosoRef = useRef<any>(null);
+
+  const memoizedTranscripts = transcripts;
+
+  useEffect(() => {
+    if (virtuosoRef.current && memoizedTranscripts.length > 0) {
+      virtuosoRef.current.scrollToIndex({
+        index: memoizedTranscripts.length - 1,
+        align: 'end',
+        behavior: 'smooth'
+      });
+    }
+  }, [memoizedTranscripts]);
   const [shareSuccess, setShareSuccess] = useState(false);
   
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [showResponsivenessInfo, setShowResponsivenessInfo] = useState(false);
-
-  const memoizedTranscripts = transcripts;
   
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
@@ -2321,6 +2332,7 @@ Rules:
               </div>
             ) : (
               <Virtuoso
+                ref={virtuosoRef}
                 style={{ height: '100%' }}
                 data={memoizedTranscripts}
                 itemContent={(index, t) => (
@@ -2329,7 +2341,6 @@ Rules:
                   </div>
                 )}
                 followOutput="smooth"
-                initialTopMostItemIndex={memoizedTranscripts.length - 1}
               />
             )}
           </div>

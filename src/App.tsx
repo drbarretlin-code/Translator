@@ -1168,22 +1168,16 @@ export default function App() {
     stopHeartbeat();
 
     if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
-      // 移除自動關閉房間邏輯，避免誤觸
       console.log("Room session stopped, but not closing room automatically.");
     }
 
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
+    // 1. 停止媒體串流
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
     }
+
+    // 2. 關閉 Live Session
     if (sessionPromiseRef.current) {
       sessionPromiseRef.current.then((session: any) => {
         if (session && typeof session.close === 'function') {
@@ -1192,10 +1186,25 @@ export default function App() {
       }).catch(() => {});
       sessionPromiseRef.current = null;
     }
-    
-    // 徹底釋放 AudioContext 資源
+
+    // 3. 徹底釋放 AudioContext 與處理器
+    if (processorRef.current) {
+      try {
+        processorRef.current.disconnect();
+      } catch (e) {
+        console.error("Error disconnecting processor:", e);
+      }
+      processorRef.current = null;
+    }
+
     if (audioContextRef.current) {
-      audioContextRef.current.close().catch(console.error);
+      try {
+        if (audioContextRef.current.state !== 'closed') {
+          await audioContextRef.current.close();
+        }
+      } catch (e) {
+        console.error("Error closing AudioContext:", e);
+      }
       audioContextRef.current = null;
     }
     

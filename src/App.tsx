@@ -24,15 +24,17 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
     </div>
 
     {/* 原文 */}
-    <div className="flex flex-col gap-1.5 min-h-[1.5rem]">
-      <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
-        {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
-        {t.original}
+    {t.isLocal && (
+      <div className="flex flex-col gap-1.5 min-h-[1.5rem]">
+        <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
+          {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
+          {t.original}
+        </div>
       </div>
-    </div>
+    )}
     
     {/* 分隔線 */}
-    <div className="h-px w-full bg-slate-200 dark:bg-slate-700 shrink-0"></div>
+    {t.isLocal && <div className="h-px w-full bg-slate-200 dark:bg-slate-700 shrink-0"></div>}
     
     {/* 翻譯文 */}
     <div className="flex flex-col gap-1.5 min-h-[1.5rem]">
@@ -1406,7 +1408,8 @@ Rules:
                       isTranslating: true,
                       sourceLang: "Auto",
                       targetLang: "Auto",
-                      createdAt: Date.now()
+                      createdAt: Date.now(),
+                      isLocal: isRecording // 新增標記
                     }];
                   }
                 });

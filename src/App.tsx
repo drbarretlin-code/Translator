@@ -86,9 +86,11 @@ interface Transcript {
   targetLang: string;
   detectedLang?: string;
   error?: string;
+  speakerId: string;
   speakerName?: string;
   createdAt: number;
   timestamp?: any;
+  isLocal?: boolean;
 }
 
 const CountryFlag = ({ langId, className }: { langId: string, className?: string }) => {
@@ -240,7 +242,6 @@ export default function App() {
 
   const [isRecording, setIsRecording] = useState(false);
   const isRecordingRef = useRef(false);
-  const firestoreWorkerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
     isRecordingRef.current = isRecording;
@@ -282,26 +283,6 @@ export default function App() {
         }
       };
 
-  useEffect(() => {
-    // 初始化 Firestore Worker
-    firestoreWorkerRef.current = new Worker(new URL('./firestoreWorker.ts', import.meta.url));
-    console.log('Firestore worker initialized in App.tsx');
-    firestoreWorkerRef.current.onmessage = (e) => {
-      console.log('Firestore worker message:', e.data);
-    };
-    
-    // 傳入 Firebase 設定
-    import('../firebase-applet-config.json').then((config) => {
-      firestoreWorkerRef.current?.postMessage({
-        type: 'init',
-        config: config.default
-      });
-    });
-    
-    return () => {
-      firestoreWorkerRef.current?.terminate();
-    };
-  }, []);
   const [isSpeakingEnabled, setIsSpeakingEnabled] = useState(false);
   const [localLang, setLocalLang] = useState(getDefaultLang);
   const [clientLang, setClientLang] = useState('en-US');
@@ -470,21 +451,18 @@ export default function App() {
             // 更新本地 ID，確保與 Firestore 的同步一致性
             setTranscripts(prev => prev.map(t => t.id === lastTranscript.id ? transcriptToSave : t));
             
-            firestoreWorkerRef.current?.postMessage({
-              type: 'set',
-              collectionPath: `rooms/${roomId}/transcripts`,
-              docId: transcriptToSave.id,
-              data: {
-                original: transcriptToSave.original,
-                translated: transcriptToSave.translated,
-                isFinal: true,
-                sourceLang: transcriptToSave.sourceLang,
-                targetLang: transcriptToSave.targetLang,
-                timestamp: 'SERVER_TIMESTAMP',
-                speakerId: user.uid,
-                ...(userName ? { speakerName: userName } : {})
-              }
-            });
+            const docRef = doc(db, 'rooms', roomId, 'transcripts', transcriptToSave.id);
+            await setDoc(docRef, {
+              original: transcriptToSave.original,
+              translated: transcriptToSave.translated,
+              isFinal: true,
+              sourceLang: transcriptToSave.sourceLang,
+              targetLang: transcriptToSave.targetLang,
+              timestamp: serverTimestamp(),
+              speakerId: user.uid,
+              ...(userName ? { speakerName: userName } : {})
+            }, { merge: true });
+            console.log('Transcript saved to Firestore successfully');
           } catch (e) {
             console.error("Failed to save transcript to Firestore", e);
           }
@@ -625,8 +603,10 @@ export default function App() {
 
       const qTranscripts = query(collection(db, 'rooms', roomId, 'transcripts'), orderBy('timestamp', 'asc'));
       unsubTranscripts = onSnapshot(qTranscripts, (snapshot) => {
+        console.log("Transcript snapshot received, count:", snapshot.size);
         const firestoreTranscripts: Transcript[] = [];
         snapshot.forEach(doc => {
+          console.log("Transcript doc:", doc.id, doc.data());
           firestoreTranscripts.push({ id: doc.id, ...doc.data() } as Transcript);
         });
         
@@ -639,7 +619,9 @@ export default function App() {
           const localNonFinal = prev.filter(t => !t.isFinal && !firestoreIds.has(t.id));
           
           // 確保排序穩定：Firestore 資料已按 timestamp 排序
-          return [...firestoreTranscripts, ...localNonFinal].sort((a, b) => a.createdAt - b.createdAt);
+          const merged = [...firestoreTranscripts, ...localNonFinal].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          console.log("Merged transcripts:", merged);
+          return merged;
         });
       }, (error) => {
         console.error("Error listening to transcripts:", error);

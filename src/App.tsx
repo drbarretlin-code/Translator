@@ -24,7 +24,7 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
     {/* ID 與時間標籤 */}
     <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono h-4">
       <span>{t.speakerName || '匿名'}</span>
-      <span>{new Date(t.createdAt || t.timestamp?.toMillis() || Date.now()).toLocaleTimeString('zh-TW', { minute: '2-digit', second: '2-digit' })}</span>
+      <span>{new Date(t.createdAt || t.timestamp?.toMillis() || Date.now()).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</span>
     </div>
 
     {/* 原文 */}
@@ -664,7 +664,7 @@ export default function App() {
     }
     
     if (!userApiKey) {
-      setCustomAlert({ message: "請輸入您的 Gemini API 金鑰，再建立房間。", type: 'alert' });
+      setCustomAlert({ message: "請輸入您的 API 金鑰，再建立房間。", type: 'alert' });
       return;
     }
 
@@ -916,7 +916,7 @@ export default function App() {
       
       // 根據速率限制判斷：免費版通常較低 (例如 15 RPM)，付費版較高
       const type = limit > 50 ? 'paid' : 'free';
-      const projectName = 'Gemini API';
+      const projectName = 'Interpreter';
 
       const result = { type, projectName };
       apiKeyValidationCache.current[key] = result;
@@ -1368,7 +1368,7 @@ export default function App() {
     
     if (!effectiveApiKey) {
       if (user && roomCreatorId && user.uid === roomCreatorId) {
-        setErrorMsg('請先在管理者設定中配置您的 Gemini API 金鑰。');
+        setErrorMsg('請先在管理者設定中配置您的 API 金鑰。');
         setShowAdminSettings(true);
       } else {
         setErrorMsg('無法取得房間的 API 金鑰，請聯繫建立者。');
@@ -1840,7 +1840,7 @@ Rules:
 
                 <div className="space-y-3">
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Gemini API 金鑰
+                    API 金鑰
                   </label>
                   <div className="relative">
                     <input
@@ -2020,7 +2020,7 @@ Rules:
                     type="password"
                     value={userApiKey}
                     onChange={(e) => setUserApiKey(e.target.value)}
-                    placeholder="輸入 Gemini API 金鑰 (僅儲存於本地)"
+                    placeholder="輸入 API 金鑰 (僅儲存於本地)"
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -2107,7 +2107,7 @@ Rules:
                       value={userApiKey}
                       onChange={(e) => setUserApiKey(e.target.value)}
                       className="w-full pl-4 pr-24 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono text-sm"
-                      placeholder="輸入您的 Gemini API Key"
+                      placeholder="輸入您的 API Key"
                     />
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                       <button

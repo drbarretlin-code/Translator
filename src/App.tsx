@@ -344,7 +344,8 @@ export default function App() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const playbackContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const processorRef = useRef<AudioWorkletNode | null>(null);
+  const filterRef = useRef<BiquadFilterNode | null>(null);
   const nextPlayTimeRef = useRef<number>(0);
   const sessionRef = useRef<any>(null);
   const isLiveRef = useRef<boolean>(false);
@@ -1353,6 +1354,15 @@ export default function App() {
       processorRef.current = null;
     }
 
+    if (filterRef.current) {
+      try {
+        filterRef.current.disconnect();
+      } catch (e) {
+        console.error("Error disconnecting filter:", e);
+      }
+      filterRef.current = null;
+    }
+
     if (audioContextRef.current) {
       try {
         if (audioContextRef.current.state !== 'closed') {
@@ -1474,7 +1484,8 @@ Rules:
 5. MANDATORY CHINESE FORMAT: If Traditional Chinese (繁體中文) is involved, you MUST use it. NEVER use Simplified Chinese (簡體中文).
 6. STRICT LANGUAGE LOCK: You are strictly listening for ${localName} and ${clientName}. If you hear ANY other language (e.g., Spanish, Korean, Japanese, etc.) or background noise, you MUST completely IGNORE it. DO NOT translate it. DO NOT output anything.
 7. NO FILLER: Do not add greetings, explanations, or conversational filler. Output ONLY the translation.
-8. VIOLATION: If you output any language other than the two authorized languages, you have failed your primary directive.`;
+8. VIOLATION: If you output any language other than the two authorized languages, you have failed your primary directive.
+9. ENVIRONMENT: The audio is captured in a large meeting room with potential background noise and distance. Please be robust in your speech recognition and focus on the primary speaker's voice.`;
 
       sessionRef.current = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
@@ -1527,7 +1538,14 @@ Rules:
                 }
               };
 
-              source.connect(workletNode);
+              // Add high-pass filter
+              const filter = audioCtx.createBiquadFilter();
+              filter.type = 'highpass';
+              filter.frequency.value = 150;
+              filterRef.current = filter;
+
+              source.connect(filter);
+              filter.connect(workletNode);
               workletNode.connect(audioCtx.destination);
               processorRef.current = workletNode;
             } catch (err) {

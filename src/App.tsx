@@ -308,15 +308,9 @@ export default function App() {
 
   const memoizedTranscripts = transcripts;
 
-  useEffect(() => {
-    if (virtuosoRef.current && memoizedTranscripts.length > 0) {
-      virtuosoRef.current.scrollToIndex({
-        index: memoizedTranscripts.length - 1,
-        align: 'end',
-        behavior: 'smooth'
-      });
-    }
-  }, [memoizedTranscripts]);
+  // 使用 Virtuoso 的 followOutput 功能來自動捲動
+  // 移除手動 scrollTo 的 useEffect，改由 Virtuoso 屬性處理
+  const [followOutput, setFollowOutput] = useState(true);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
   

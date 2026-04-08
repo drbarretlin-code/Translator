@@ -370,7 +370,7 @@ export default function App() {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isRecording && !isIOS) {
+    if (isRecording) {
       startLiveSession();
     }
     
@@ -1363,6 +1363,7 @@ export default function App() {
   };
 
   const startLiveSession = async () => {
+    if (isLiveRef.current) return;
     const effectiveApiKey = (user && roomCreatorId && user.uid === roomCreatorId) ? userApiKey : (roomApiKey || userApiKey);
     
     if (!effectiveApiKey) {
@@ -1386,9 +1387,6 @@ export default function App() {
         throw new Error("您的瀏覽器不支援麥克風，請嘗試使用 Safari 或 Chrome 瀏覽器開啟此網頁。");
       }
 
-      // Use default sample rate to ensure compatibility across all devices (especially Android)
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      
       // 確保先清理舊的 AudioContext
       if (audioContextRef.current) {
         try {
@@ -1401,21 +1399,16 @@ export default function App() {
         audioContextRef.current = null;
       }
 
-      const audioCtx = new AudioContextClass();
-      audioContextRef.current = audioCtx;
-      
       // 確保在 iOS 瀏覽器上 AudioContext 狀態為 running
+      // 必須在使用者互動後立即執行
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const audioCtx = new AudioContextClass();
+      
       if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
       }
-
-      // iOS 設備友善提示
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-      // 嘗試在 iOS 上強制 resume AudioContext
-      if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-      }
+      
+      audioContextRef.current = audioCtx;
 
       let stream;
       try {

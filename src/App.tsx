@@ -1455,6 +1455,14 @@ export default function App() {
         }
       }
       mediaStreamRef.current = stream;
+      
+      // 監聽媒體串流狀態，若中斷則停止會話
+      stream.getTracks().forEach(track => {
+        track.onended = () => {
+          console.log("Media track ended, stopping session.");
+          stopLiveSession();
+        };
+      });
 
       const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
 

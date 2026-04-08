@@ -300,6 +300,7 @@ export default function App() {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [apiTier, setApiTier] = useState<'free' | 'paid'>(() => (localStorage.getItem('gemini_api_tier') as 'free' | 'paid') || 'free');
   const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const uiLang = React.useMemo(() => getDefaultLang(), []);
@@ -939,6 +940,7 @@ export default function App() {
     localStorage.setItem('gemini_api_key', userApiKey);
     localStorage.setItem('api_key_type', apiKeyType);
     localStorage.setItem('project_name', projectName);
+    localStorage.setItem('gemini_api_tier', apiTier);
     
     // 使用 debounce 避免頻繁觸發驗證
     const handler = setTimeout(() => {
@@ -946,7 +948,7 @@ export default function App() {
     }, 1000);
     
     return () => clearTimeout(handler);
-  }, [userApiKey]);
+  }, [userApiKey, apiTier]);
 
   useEffect(() => {
     localStorage.setItem('header_title_1', headerTitle1);
@@ -2179,16 +2181,19 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   {(() => {
                     const allStats = JSON.parse(localStorage.getItem('api_usage_stats') || '{}');
                     const stats = allStats[userApiKey] || { rpm: 0, tpm: 0, rpd: 0 };
-                    const limits = { rpm: 15, tpm: 1000000, rpd: 1500 };
+                    
+                    const limits = apiTier === 'paid' 
+                      ? { rpm: 300, tpm: 4000000, rpd: Infinity } 
+                      : { rpm: 15, tpm: 1000000, rpd: 1500 };
                     
                     const renderQuota = (label: string, used: number, limit: number) => {
-                      const percentage = Math.min((used / limit) * 100, 100);
+                      const percentage = limit === Infinity ? 0 : Math.min((used / limit) * 100, 100);
                       const barColor = percentage >= 90 ? 'bg-red-500' : percentage >= 70 ? 'bg-yellow-500' : 'bg-blue-600';
                       return (
                         <div className="space-y-1">
                           <div className="flex justify-between text-[10px] text-slate-500">
                             <span>{label}</span>
-                            <span>{used.toLocaleString()} / {limit.toLocaleString()}</span>
+                            <span>{used.toLocaleString()} / {limit === Infinity ? '∞' : limit.toLocaleString()}</span>
                           </div>
                           <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
                             <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${percentage}%` }}></div>
@@ -2212,6 +2217,23 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <Key className="w-4 h-4 text-blue-500" /> API 金鑰設定
                   </h4>
+                  
+                  {/* API Tier 選擇 */}
+                  <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
+                    <button
+                      onClick={() => setApiTier('free')}
+                      className={`flex-1 text-xs py-1.5 rounded-md transition-all ${apiTier === 'free' ? 'bg-white dark:bg-slate-700 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Free Tier
+                    </button>
+                    <button
+                      onClick={() => setApiTier('paid')}
+                      className={`flex-1 text-xs py-1.5 rounded-md transition-all ${apiTier === 'paid' ? 'bg-white dark:bg-slate-700 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Tier 1 (Paid)
+                    </button>
+                  </div>
+
                   <div className="relative">
                     <input
                       type={showApiKey ? "text" : "password"}

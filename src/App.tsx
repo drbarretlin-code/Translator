@@ -236,7 +236,7 @@ export default function App() {
   const [roomCreatorId, setRoomCreatorId] = useState<string | null>(null);
   const [activeConnections, setActiveConnections] = useState<number>(0);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [showRoomDialog, setShowRoomDialog] = useState(true);
+  const [showRoomDialog, setShowRoomDialog] = useState(!new URLSearchParams(window.location.search).get('room'));
   const [joinRoomIdInput, setJoinRoomIdInput] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
   const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || '');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -250,6 +250,13 @@ export default function App() {
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
+
+  useEffect(() => {
+    const roomIdFromUrl = new URLSearchParams(window.location.search).get('room');
+    if (roomIdFromUrl && isAuthReady) {
+      handleJoinRoom();
+    }
+  }, [isAuthReady]);
 
       const lastMessageTimeRef = useRef<number>(Date.now());
       const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -314,7 +321,6 @@ export default function App() {
   const [showQrCode, setShowQrCode] = useState(false);
   
   const [showAdminSettings, setShowAdminSettings] = useState(false);
-  const [showResponsivenessInfo, setShowResponsivenessInfo] = useState(false);
   
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
@@ -357,15 +363,18 @@ export default function App() {
 
   // 讀取與更新費用統計
   useEffect(() => {
-    const stats = JSON.parse(localStorage.getItem('api_usage_stats') || '{}');
+    const allStats = JSON.parse(localStorage.getItem('api_usage_stats') || '{}');
     const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const stats = allStats[userApiKey] || { month: currentMonth, seconds: 0 };
+    
     if (stats.month !== currentMonth) {
-      localStorage.setItem('api_usage_stats', JSON.stringify({ month: currentMonth, seconds: 0 }));
+      allStats[userApiKey] = { month: currentMonth, seconds: 0 };
+      localStorage.setItem('api_usage_stats', JSON.stringify(allStats));
       setSessionSeconds(0);
     } else {
       setSessionSeconds(stats.seconds || 0);
     }
-  }, []);
+  }, [userApiKey]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -379,7 +388,9 @@ export default function App() {
         setSessionSeconds(prev => {
           const newVal = prev + 1;
           const currentMonth = new Date().toISOString().slice(0, 7);
-          localStorage.setItem('api_usage_stats', JSON.stringify({ month: currentMonth, seconds: newVal }));
+          const allStats = JSON.parse(localStorage.getItem('api_usage_stats') || '{}');
+          allStats[userApiKey] = { month: currentMonth, seconds: newVal };
+          localStorage.setItem('api_usage_stats', JSON.stringify(allStats));
           return newVal;
         });
 
@@ -1450,20 +1461,8 @@ export default function App() {
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
-      const responsivenessInstructions = {
-        extreme: "Translate instantly word-by-word. Do not wait for phrases. Interrupt immediately. Speed is the absolute highest priority.",
-        hyper: "Translate instantly upon hearing 2-3 words. Extremely aggressive interruption. Prioritize speed over perfect grammar.",
-        super_fast: "Be hyper-responsive. Translate instantly the moment you hear any complete phrase, do not wait for the user to finish their thought or sentence.",
-        fast: "Be extremely responsive. Translate immediately even with short pauses.",
-        normal: "Be balanced. Translate after natural pauses.",
-        patient: "Be patient. Wait for longer pauses to ensure complete sentences before translating."
-      };
-
       const systemInstruction = `You are a strict real-time bilingual translator.
 The two authorized languages are: ${localName} and ${clientName}.
-
-Responsiveness Instruction:
-${responsivenessInstructions[responsiveness as keyof typeof responsivenessInstructions] || responsivenessInstructions.normal}
 
 Rules:
 1. ONLY translate between ${localName} and ${clientName}.
@@ -1838,7 +1837,7 @@ Rules:
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800">
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-2 text-center">多人協作翻譯室</h2>
+              <h2 className="text-2xl font-bold mb-2 text-center">Multilingual meeting room</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">
                 建立專屬房間或加入現有房間，與他人即時共享翻譯結果。
               </p>
@@ -2113,7 +2112,8 @@ Rules:
                 <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">額度監控</h4>
                   {(() => {
-                    const stats = JSON.parse(localStorage.getItem('api_usage_stats') || '{"seconds": 0}');
+                    const allStats = JSON.parse(localStorage.getItem('api_usage_stats') || '{}');
+                    const stats = allStats[userApiKey] || { seconds: 0 };
                     const usedSeconds = stats.seconds || 0;
                     const usedHours = usedSeconds / 3600;
                     const limitHours = 30;
@@ -2367,36 +2367,8 @@ Rules:
             </div>
           </div>
 
-          {/* 輸出模式與靈敏度控制 */}
+          {/* 輸出模式控制 */}
           <div className="flex items-center justify-end gap-2 px-1">
-            {/* 反應靈敏度控制 */}
-            <div className="relative flex items-center gap-1.5">
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">反應靈敏度</span>
-              <select
-                value={responsiveness || 'normal'}
-                onChange={(e) => {
-                  setResponsiveness(e.target.value);
-                  localStorage.setItem('responsiveness', e.target.value);
-                }}
-                className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                title="反應靈敏度"
-              >
-                <option value="extreme">光速</option>
-                <option value="hyper">極速</option>
-                <option value="super_fast">超靈敏</option>
-                <option value="fast">靈敏</option>
-                <option value="normal">標準</option>
-                <option value="patient">穩健</option>
-              </select>
-              <button
-                onClick={() => setShowResponsivenessInfo(true)}
-                className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors"
-                title="說明"
-              >
-                <AlertCircle className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
             <div className="relative">
               <select
                 value={audioOutputMode}
@@ -2541,80 +2513,7 @@ Rules:
         )}
 
         {/* Responsiveness Info Modal */}
-        {showResponsivenessInfo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[80vh] animate-in zoom-in-95">
-              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-blue-500" />
-                  反應靈敏度說明
-                </h3>
-                <button onClick={() => setShowResponsivenessInfo(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-4 overflow-y-auto text-sm text-slate-600 dark:text-slate-300 space-y-4">
-                <p>以下是目前系統中實際運作的對應關係，包含前端 UI 顯示以及實際發送給 AI 的底層英文指令：</p>
-                
-                <div>
-                  <strong className="text-slate-800 dark:text-slate-100">光速 (Extreme)</strong>
-                  <ul className="list-disc pl-5 mt-1 space-y-1">
-                    <li>UI 說明：逐字即時翻譯，完全不等待，速度至上。</li>
-                    <li className="font-mono text-xs text-slate-500">Translate instantly word-by-word. Do not wait for phrases. Interrupt immediately. Speed is the absolute highest priority.</li>
-                  </ul>
-                </div>
-
-                <div>
-                  <strong className="text-slate-800 dark:text-slate-100">極速 (Hyper)</strong>
-                  <ul className="list-disc pl-5 mt-1 space-y-1">
-                    <li>UI 說明：聽到 2-3 個字即刻翻譯，極具侵略性的打斷。</li>
-                    <li className="font-mono text-xs text-slate-500">Translate instantly upon hearing 2-3 words. Extremely aggressive interruption. Prioritize speed over perfect grammar.</li>
-                  </ul>
-                </div>
-
-                <div>
-                  <strong className="text-slate-800 dark:text-slate-100">超靈敏 (Super Fast)</strong>
-                  <ul className="list-disc pl-5 mt-1 space-y-1">
-                    <li>UI 說明：聽到短語即刻翻譯，適合極短對答。</li>
-                    <li className="font-mono text-xs text-slate-500">Be hyper-responsive. Translate instantly the moment you hear any complete phrase, do not wait for the user to finish their thought or sentence.</li>
-                  </ul>
-                </div>
-
-                <div>
-                  <strong className="text-slate-800 dark:text-slate-100">靈敏 (Fast)</strong>
-                  <ul className="list-disc pl-5 mt-1 space-y-1">
-                    <li>UI 說明：AI 會快速反應，適合短句對話。</li>
-                    <li className="font-mono text-xs text-slate-500">Be extremely responsive. Translate immediately even with short pauses.</li>
-                  </ul>
-                </div>
-
-                <div>
-                  <strong className="text-slate-800 dark:text-slate-100">標準 (Normal)</strong>
-                  <ul className="list-disc pl-5 mt-1 space-y-1">
-                    <li>UI 說明：平衡反應速度與準確度。</li>
-                    <li className="font-mono text-xs text-slate-500">Be balanced. Translate after natural pauses.</li>
-                  </ul>
-                </div>
-
-                <div>
-                  <strong className="text-slate-800 dark:text-slate-100">穩健 (Patient)</strong>
-                  <ul className="list-disc pl-5 mt-1 space-y-1">
-                    <li>UI 說明：AI 會等待更長的停頓，適合長句、會議記錄。</li>
-                    <li className="font-mono text-xs text-slate-500">Be patient. Wait for longer pauses to ensure complete sentences before translating.</li>
-                  </ul>
-                </div>
-              </div>
-              <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  onClick={() => setShowResponsivenessInfo(false)}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all shadow-sm"
-                >
-                  了解
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Removed */}
       </main>
     </div>
   );

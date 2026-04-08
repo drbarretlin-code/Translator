@@ -1700,11 +1700,14 @@ Rules:
           },
           onerror: (err: any) => {
             console.error("Live API Error:", err);
-            if (err.message?.includes("permission")) {
-              setErrorMsg("Live API 權限不足，請確認 API 金鑰是否有效且已啟用相關服務。");
-            } else {
-              setErrorMsg("連線發生錯誤");
+            let errorMessage = "連線發生錯誤";
+            if (err.message?.includes("permission") || err.message?.includes("403")) {
+              errorMessage = "API 金鑰無效或權限不足 (403 Forbidden)。請檢查您的金鑰設定。";
+            } else if (err.message?.includes("429") || err.message?.toLowerCase().includes("quota")) {
+              errorMessage = "系統額度已達上限 (Quota Exceeded)。請稍後再試，或使用付費版金鑰。";
             }
+            setErrorMsg(errorMessage);
+            setCustomAlert({ message: errorMessage, type: 'alert' });
             stopLiveSession();
           }
         },
@@ -1720,11 +1723,16 @@ Rules:
       });
     } catch (err: any) {
       console.error("Failed to start Live API:", err);
+      let errorMessage = err.message || "啟動失敗";
       if (err.name === 'NotAllowedError' || err.message?.toLowerCase().includes('permission denied')) {
-        setErrorMsg("無法存取麥克風。請允許麥克風權限，或嘗試使用 Safari / Chrome 瀏覽器開啟此網頁。");
-      } else {
-        setErrorMsg(err.message || "啟動失敗");
+        errorMessage = "無法存取麥克風。請允許麥克風權限，或嘗試使用 Safari / Chrome 瀏覽器開啟此網頁。";
+      } else if (err.message?.includes('429') || err.message?.toLowerCase().includes('quota')) {
+        errorMessage = "系統額度已達上限 (Quota Exceeded)。請稍後再試，或使用付費版金鑰。";
+      } else if (err.message?.includes('403')) {
+        errorMessage = "API 金鑰無效或權限不足 (403 Forbidden)。請檢查您的金鑰設定。";
       }
+      setErrorMsg(errorMessage);
+      setCustomAlert({ message: errorMessage, type: 'alert' });
       stopLiveSession();
     }
   };
@@ -1924,12 +1932,6 @@ Rules:
             {roomId && (
               <div className="flex items-center gap-2 mr-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg">
                 <span className="text-xs font-medium">房間: {roomId}</span>
-                {projectName && (
-                  <>
-                    <span className="text-slate-400">|</span>
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{projectName}</span>
-                  </>
-                )}
                 <button 
                   onClick={handleShareUrl}
                   className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-blue-600 dark:text-blue-400 ml-2"
@@ -2024,7 +2026,7 @@ Rules:
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    設定 Gemini API 金鑰以啟用翻譯功能。
+                    設定 API 金鑰以啟用翻譯功能。
                   </p>
                 </div>
 
@@ -2127,7 +2129,7 @@ Rules:
                     </div>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    設定 Gemini API 金鑰以啟用翻譯功能。
+                    設定 API 金鑰以啟用翻譯功能。
                   </p>
                 </div>
 

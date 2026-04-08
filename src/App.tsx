@@ -1358,6 +1358,17 @@ export default function App() {
       }
       audioContextRef.current = null;
     }
+
+    if (playbackContextRef.current) {
+      try {
+        if (playbackContextRef.current.state !== 'closed') {
+          await playbackContextRef.current.close();
+        }
+      } catch (e) {
+        console.error("Error closing playbackContext:", e);
+      }
+      playbackContextRef.current = null;
+    }
     
     nextPlayTimeRef.current = 0;
   };
@@ -1402,7 +1413,7 @@ export default function App() {
       // 確保在 iOS 瀏覽器上 AudioContext 狀態為 running
       // 必須在使用者互動後立即執行
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const audioCtx = new AudioContextClass();
+      const audioCtx = new AudioContextClass({ latencyHint: 'interactive' });
       
       if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
@@ -1704,7 +1715,7 @@ Rules:
             if (err.message?.includes("permission") || err.message?.includes("403")) {
               errorMessage = "API 金鑰無效或權限不足 (403 Forbidden)。請檢查您的金鑰設定。";
             } else if (err.message?.includes("429") || err.message?.toLowerCase().includes("quota")) {
-              errorMessage = "系統額度已達上限 (Quota Exceeded)。請稍後再試，或使用付費版金鑰。";
+              errorMessage = "系統額度已達上限 (Quota Exceeded)。建議您檢查 Google AI Studio 的使用量統計，或考慮升級為付費方案。";
             }
             setErrorMsg(errorMessage);
             setCustomAlert({ message: errorMessage, type: 'alert' });
@@ -1727,7 +1738,7 @@ Rules:
       if (err.name === 'NotAllowedError' || err.message?.toLowerCase().includes('permission denied')) {
         errorMessage = "無法存取麥克風。請允許麥克風權限，或嘗試使用 Safari / Chrome 瀏覽器開啟此網頁。";
       } else if (err.message?.includes('429') || err.message?.toLowerCase().includes('quota')) {
-        errorMessage = "系統額度已達上限 (Quota Exceeded)。請稍後再試，或使用付費版金鑰。";
+        errorMessage = "系統額度已達上限 (Quota Exceeded)。建議您檢查 Google AI Studio 的使用量統計，或考慮升級為付費方案。";
       } else if (err.message?.includes('403')) {
         errorMessage = "API 金鑰無效或權限不足 (403 Forbidden)。請檢查您的金鑰設定。";
       }
@@ -2098,6 +2109,30 @@ Rules:
               </div>
               
               <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+                {/* 額度監控面板 */}
+                <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">額度監控</h4>
+                  {(() => {
+                    const stats = JSON.parse(localStorage.getItem('api_usage_stats') || '{"seconds": 0}');
+                    const usedSeconds = stats.seconds || 0;
+                    const usedHours = usedSeconds / 3600;
+                    const limitHours = 30;
+                    const percentage = Math.min((usedHours / limitHours) * 100, 100);
+                    const textColor = percentage >= 95 ? 'text-red-500' : percentage >= 80 ? 'text-yellow-500' : 'text-slate-900 dark:text-slate-100';
+                    return (
+                      <>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-slate-500 dark:text-slate-400">本月已使用:</span>
+                          <span className={`font-bold ${textColor}`}>{usedHours.toFixed(1)} / {limitHours} 小時</span>
+                        </div>
+                        <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
+                          <div className={`h-2.5 rounded-full ${percentage >= 95 ? 'bg-red-500' : percentage >= 80 ? 'bg-yellow-500' : 'bg-blue-600'}`} style={{ width: `${percentage}%` }}></div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
                 {/* API 金鑰設定 */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">

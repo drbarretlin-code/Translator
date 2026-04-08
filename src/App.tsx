@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { io, Socket } from 'socket.io-client';
 import * as Y from 'yjs';
 import { Virtuoso } from 'react-virtuoso';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as OpenCC from 'opencc-js';
 import { QRCodeSVG } from 'qrcode.react';
@@ -1726,7 +1726,14 @@ Rules:
             }
           },
           onclose: () => {
-            stopLiveSession();
+            console.log("Live API connection closed, attempting to reconnect...");
+            if (isLiveRef.current) {
+              setTimeout(() => {
+                if (isLiveRef.current) {
+                  startLiveSession();
+                }
+              }, 2000);
+            }
           },
           onerror: (err: any) => {
             console.error("Live API Error:", err);
@@ -1738,7 +1745,16 @@ Rules:
             }
             setErrorMsg(errorMessage);
             setCustomAlert({ message: errorMessage, type: 'alert' });
-            stopLiveSession();
+            
+            // 嘗試自動重連
+            if (isLiveRef.current) {
+              console.log("Live API error, attempting to reconnect in 3 seconds...");
+              setTimeout(() => {
+                if (isLiveRef.current) {
+                  startLiveSession();
+                }
+              }, 3000);
+            }
           }
         },
         config: {
@@ -2128,27 +2144,65 @@ Rules:
               </div>
               
               <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-                {/* 額度監控面板 */}
+                {/* Quotas Limitation 面板 */}
                 <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">額度監控</h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Quotas Limitation</h4>
+                    <button
+                      onClick={() => {
+                        const info = `根據 Google AI Studio 與 Google Cloud 2026 年最新規範，Gemini API 的配額與重置機制整理如下：
+配額類別 (Quotas Categories)
+RPM (Requests Per Minute)：每分鐘請求次數，限制瞬時併發量。
+TPM (Tokens Per Minute)：每分鐘 Token 消耗量，限制資料處理吞吐量。
+RPD (Requests Per Day)：每日總請求次數，限制單日總使用規模。
+配額限制對比 (以 Gemini 1.5 Flash 為例)
+配額類別 Free Tier (免費層級) Tier 1 (Pay-as-you-go)
+RPM 15 RPM 300 RPM
+TPM 1,000,000 TPM 4,000,000 TPM
+RPD 1,500 RPD 無硬性限制 (受預算限制)
+重置時間與邏輯
+-RPM / TPM (分鐘級)：
+--邏輯：採用「令牌桶演算法」(Token Bucket)。這並非固定在每分鐘的第 0 秒重置，而是隨著時間推移持續補充額度。
+--恢復：若達到上限，通常需等待數秒至一分鐘即可繼續發送請求。
+-RPD (日級)：
+--重置時間：每日午夜 00:00 (太平洋時間 PT)。
+--換算：台灣時間 (UTC+8) 為每日 15:00 (冬令) 或 16:00 (夏令) 重置。`;
+                        const win = window.open('', '_blank', 'width=600,height=600');
+                        win?.document.write(`<pre style="white-space: pre-wrap; font-family: sans-serif; padding: 20px;">${info}</pre>`);
+                      }}
+                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-500"
+                      title="查看配額說明"
+                    >
+                      <Info className="w-4 h-4" />
+                    </button>
+                  </div>
                   {(() => {
                     const allStats = JSON.parse(localStorage.getItem('api_usage_stats') || '{}');
-                    const stats = allStats[userApiKey] || { seconds: 0 };
-                    const usedSeconds = stats.seconds || 0;
-                    const usedHours = usedSeconds / 3600;
-                    const limitHours = 30;
-                    const percentage = Math.min((usedHours / limitHours) * 100, 100);
-                    const textColor = percentage >= 95 ? 'text-red-500' : percentage >= 80 ? 'text-yellow-500' : 'text-slate-900 dark:text-slate-100';
+                    const stats = allStats[userApiKey] || { rpm: 0, tpm: 0, rpd: 0 };
+                    const limits = { rpm: 15, tpm: 1000000, rpd: 1500 };
+                    
+                    const renderQuota = (label: string, used: number, limit: number) => {
+                      const percentage = Math.min((used / limit) * 100, 100);
+                      const barColor = percentage >= 90 ? 'bg-red-500' : percentage >= 70 ? 'bg-yellow-500' : 'bg-blue-600';
+                      return (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[10px] text-slate-500">
+                            <span>{label}</span>
+                            <span>{used.toLocaleString()} / {limit.toLocaleString()}</span>
+                          </div>
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                            <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${percentage}%` }}></div>
+                          </div>
+                        </div>
+                      );
+                    };
+
                     return (
-                      <>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-slate-500 dark:text-slate-400">本月已使用:</span>
-                          <span className={`font-bold ${textColor}`}>{usedHours.toFixed(1)} / {limitHours} 小時</span>
-                        </div>
-                        <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
-                          <div className={`h-2.5 rounded-full ${percentage >= 95 ? 'bg-red-500' : percentage >= 80 ? 'bg-yellow-500' : 'bg-blue-600'}`} style={{ width: `${percentage}%` }}></div>
-                        </div>
-                      </>
+                      <div className="space-y-3">
+                        {renderQuota('RPM', stats.rpm || 0, limits.rpm)}
+                        {renderQuota('TPM', stats.tpm || 0, limits.tpm)}
+                        {renderQuota('RPD', stats.rpd || 0, limits.rpd)}
+                      </div>
                     );
                   })()}
                 </div>

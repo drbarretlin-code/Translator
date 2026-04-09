@@ -272,6 +272,7 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const uiLang = React.useMemo(() => getDefaultLang(), []);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_completed'));
   const virtuosoRef = useRef<any>(null);
 
   const memoizedTranscripts = transcripts;
@@ -1474,7 +1475,8 @@ Rules:
 6. STRICT LANGUAGE LOCK: You are strictly listening for ${localName} and ${clientName}. If you hear ANY other language (e.g., Spanish, Korean, Japanese, etc.) or background noise, you MUST completely IGNORE it. DO NOT translate it. DO NOT output anything.
 7. NO FILLER: Do not add greetings, explanations, or conversational filler. Output ONLY the translation.
 8. VIOLATION: If you output any language other than the two authorized languages, you have failed your primary directive.
-9. ENVIRONMENT: The audio is captured in a large meeting room with potential background noise and distance. Please be robust in your speech recognition and focus on the primary speaker's voice.`;
+9. ROBUSTNESS (NOISY ENVIRONMENT): You are operating in a noisy environment. Prioritize the primary speaker's voice. Ignore background chatter, non-speech sounds, and irrelevant noise. If input is fragmented due to noise, reconstruct the meaning based on context.
+10. ACCURACY: If input is ambiguous, prioritize the authorized languages (${localName}, ${clientName}) and ignore dialects or languages not specified.`;
 
       sessionRef.current = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
@@ -2338,12 +2340,17 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                     value={localLang}
                     onChange={(e) => setLocalLang(e.target.value)}
                     disabled={isRecording}
-                    className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
+                    className="w-full pl-8 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
                   >
                     {LANGUAGES.map(lang => (
-                      <option key={`local-${lang.id}`} value={lang.id}>{lang.name}</option>
+                      <option key={`local-${lang.id}`} value={lang.id}>
+                        {lang.name}
+                      </option>
                     ))}
                   </select>
+                  <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <CountryFlag langId={localLang} className="w-4 h-3 rounded-sm shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
+                  </div>
                 </div>
               </div>
 
@@ -2358,12 +2365,17 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                     value={clientLang}
                     onChange={(e) => setClientLang(e.target.value)}
                     disabled={isRecording}
-                    className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
+                    className="w-full pl-8 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
                   >
                     {LANGUAGES.map(lang => (
-                      <option key={`client-${lang.id}`} value={lang.id}>{lang.name}</option>
+                      <option key={`client-${lang.id}`} value={lang.id}>
+                        {lang.name}
+                      </option>
                     ))}
                   </select>
+                  <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <CountryFlag langId={clientLang} className="w-4 h-3 rounded-sm shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
+                  </div>
                 </div>
               </div>
               
@@ -2519,6 +2531,29 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             )}
           </div>
         </div>
+
+        {/* Onboarding Modal */}
+        {showOnboarding && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full animate-in zoom-in-95">
+              <h2 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">歡迎使用 AI 即時翻譯</h2>
+              <ul className="space-y-3 mb-6 text-sm text-slate-600 dark:text-slate-300">
+                <li>1. 選擇您的語言與對方語言。</li>
+                <li>2. 點擊錄音按鈕開始即時翻譯。</li>
+                <li>3. 語音輸出可以從控制面板調整。</li>
+              </ul>
+              <button 
+                onClick={() => {
+                  localStorage.setItem('onboarding_completed', 'true');
+                  setShowOnboarding(false);
+                }}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all"
+              >
+                開始使用
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Clear Confirm Modal */}
         {showClearConfirm && (

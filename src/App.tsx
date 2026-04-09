@@ -2659,6 +2659,33 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
           </div>
         )}
       </main>
+
+      {/* History Modal */}
+      {showHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto animate-in zoom-in-95">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">翻譯歷史</h2>
+              <button onClick={() => setShowHistory(false)} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              {history.length === 0 ? (
+                <p className="text-center text-slate-500 dark:text-slate-400">尚無翻譯歷史</p>
+              ) : (
+                history.map(t => (
+                  <div key={t.id} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                    <p className="text-sm text-slate-600 dark:text-slate-300">{t.original}</p>
+                    <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mt-1">{t.translated}</p>
+                    <p className="text-[10px] text-slate-400 mt-2">{t.timestamp ? new Date(t.timestamp.toMillis()).toLocaleString() : '剛剛'}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -309,8 +309,12 @@ export default function App() {
   const [showTimePrompt, setShowTimePrompt] = useState(false);
   
   // 輸出模式控制
-  const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(false);
-  const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>('None');
+  const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(() => {
+    const mode = localStorage.getItem('audio_output_mode');
+    if (mode === 'None') return false;
+    return localStorage.getItem('audio_output') !== 'false';
+  });
+  const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'None');
   const [isTextOutputEnabled, setIsTextOutputEnabled] = useState(() => localStorage.getItem('text_output') !== 'false');
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);

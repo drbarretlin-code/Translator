@@ -267,6 +267,7 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [apiTier, setApiTier] = useState<'free' | 'paid'>(() => (localStorage.getItem('gemini_api_tier') as 'free' | 'paid') || 'free');
+  const [voiceType, setVoiceType] = useState<'Men' | 'Women'>(() => (localStorage.getItem('voice_type') as 'Men' | 'Women') || 'Women');
   const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const uiLang = React.useMemo(() => getDefaultLang(), []);
@@ -308,12 +309,8 @@ export default function App() {
   const [showTimePrompt, setShowTimePrompt] = useState(false);
   
   // 輸出模式控制
-  const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(() => {
-    const mode = localStorage.getItem('audio_output_mode');
-    if (mode === 'None') return false;
-    return localStorage.getItem('audio_output') !== 'false';
-  });
-  const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'None');
+  const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(false);
+  const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>('None');
   const [isTextOutputEnabled, setIsTextOutputEnabled] = useState(() => localStorage.getItem('text_output') !== 'false');
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -751,6 +748,10 @@ export default function App() {
     isTextOutputEnabledRef.current = isTextOutputEnabled;
     localStorage.setItem('text_output', isTextOutputEnabled.toString());
   }, [isTextOutputEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('voice_type', voiceType);
+  }, [voiceType]);
 
   useEffect(() => {
     localLangRef.current = localLang;
@@ -1735,7 +1736,7 @@ Rules:
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } }
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
           },
           systemInstruction: `${systemInstruction}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。請確保翻譯結果與使用者的語音輸入保持同步且完整。`,
           outputAudioTranscription: {},
@@ -2019,91 +2020,6 @@ Rules:
         {/* 管理者設定彈窗 */}
       {showAdminSettings && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                <Lock className="w-5 h-5 text-blue-500" /> 管理者設定
-              </h3>
-              <button 
-                onClick={() => setShowAdminSettings(false)}
-                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto flex-1">
-              <div className="space-y-6">
-                {/* API Key 設定區塊 */}
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Key className="w-4 h-4 text-blue-500" /> API 金鑰設定
-                  </h4>
-                  <input
-                    type="password"
-                    value={userApiKey}
-                    onChange={(e) => setUserApiKey(e.target.value)}
-                    placeholder="輸入 API 金鑰 (僅儲存於本地)"
-                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  />
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    設定 API 金鑰以啟用翻譯功能。
-                  </p>
-                </div>
-
-                <hr className="border-slate-100 dark:border-slate-800" />
-
-                {/* 頂部標題設定 */}
-                <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Languages className="w-4 h-4 text-purple-500" /> 頂部標題設定
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">標題 1</label>
-                      <input
-                        type="text"
-                        value={headerTitle1}
-                        onChange={(e) => setHeaderTitle1(e.target.value)}
-                        className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">標題 2</label>
-                      <input
-                        type="text"
-                        value={headerTitle2}
-                        onChange={(e) => setHeaderTitle2(e.target.value)}
-                        className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-8">
-                <button
-                  onClick={() => {
-                    setShowAdminSettings(false);
-                    // 立即生效：如果正在錄音，重新初始化
-                    if (isRecording) {
-                      stopLiveSession();
-                      setTimeout(() => startLiveSession(), 500);
-                    }
-                  }}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98]"
-                >
-                  儲存並關閉
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 管理者設定彈窗 */}
-      {showAdminSettings && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -2235,6 +2151,29 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     設定 API 金鑰以啟用翻譯功能。
                   </p>
+                </div>
+
+                <hr className="border-slate-100 dark:border-slate-800" />
+
+                {/* 語音人聲設定 */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Mic className="w-4 h-4 text-blue-500" /> 語音人聲設定
+                  </h4>
+                  <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
+                    <button
+                      onClick={() => setVoiceType('Men')}
+                      className={`flex-1 text-xs py-1.5 rounded-md transition-all ${voiceType === 'Men' ? 'bg-white dark:bg-slate-700 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Men
+                    </button>
+                    <button
+                      onClick={() => setVoiceType('Women')}
+                      className={`flex-1 text-xs py-1.5 rounded-md transition-all ${voiceType === 'Women' ? 'bg-white dark:bg-slate-700 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Women
+                    </button>
+                  </div>
                 </div>
 
                 <hr className="border-slate-100 dark:border-slate-800" />

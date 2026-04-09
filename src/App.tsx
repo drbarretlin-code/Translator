@@ -299,7 +299,7 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [apiTier, setApiTier] = useState<'free' | 'paid'>(() => (localStorage.getItem('gemini_api_tier') as 'free' | 'paid') || 'free');
-  const [voiceType, setVoiceType] = useState<'Men' | 'Women'>(() => (localStorage.getItem('voice_type') as 'Men' | 'Women') || 'Women');
+  const [voiceType, setVoiceType] = useState<'Men' | 'Women'>(() => (localStorage.getItem('voice_type') as 'Men' | 'Women') || 'Men');
   const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const uiLang = React.useMemo(() => getDefaultLang(), []);
@@ -358,7 +358,7 @@ export default function App() {
   }, [transcripts]);
 
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
-  const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
+  const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'Equipment Department');
   const [responsiveness, setResponsiveness] = useState(() => localStorage.getItem('responsiveness') || 'normal');
   
   // 費用統計相關 state
@@ -377,7 +377,6 @@ export default function App() {
     return localStorage.getItem('audio_output') !== 'false';
   });
   const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'None');
-  const [isTextOutputEnabled, setIsTextOutputEnabled] = useState(() => localStorage.getItem('text_output') !== 'false');
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   
@@ -397,16 +396,52 @@ export default function App() {
   const clientLangRef = useRef<string>(clientLang);
   const transcriptsRef = useRef<Transcript[]>([]);
   const isAudioOutputEnabledRef = useRef<boolean>(isAudioOutputEnabled);
-  const isTextOutputEnabledRef = useRef<boolean>(isTextOutputEnabled);
 
   // 讀取與更新費用統計
+  const updateApiUsage = (type: 'request' | 'tokens', count: number = 1) => {
+    if (!userApiKey) return;
+    const now = new Date();
+    const currentMonth = now.toISOString().slice(0, 7);
+    const currentMinute = now.toISOString().slice(0, 16);
+    const currentDay = now.toISOString().slice(0, 10);
+    
+    const allStats = JSON.parse(localStorage.getItem('api_usage_stats') || '{}');
+    const stats = allStats[userApiKey] || { month: currentMonth, seconds: 0, rpm: 0, tpm: 0, rpd: 0, lastMinute: currentMinute, lastDay: currentDay };
+    
+    if (stats.lastMinute !== currentMinute) {
+      stats.rpm = 0;
+      stats.tpm = 0;
+      stats.lastMinute = currentMinute;
+    }
+    if (stats.lastDay !== currentDay) {
+      stats.rpd = 0;
+      stats.lastDay = currentDay;
+    }
+    if (stats.month !== currentMonth) {
+      stats.seconds = 0;
+      stats.month = currentMonth;
+    }
+    
+    if (type === 'request') {
+      stats.rpm = (stats.rpm || 0) + count;
+      stats.rpd = (stats.rpd || 0) + count;
+    } else if (type === 'tokens') {
+      stats.tpm = (stats.tpm || 0) + count;
+    }
+    
+    allStats[userApiKey] = stats;
+    localStorage.setItem('api_usage_stats', JSON.stringify(allStats));
+  };
+
   useEffect(() => {
     const allStats = JSON.parse(localStorage.getItem('api_usage_stats') || '{}');
     const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
     const stats = allStats[userApiKey] || { month: currentMonth, seconds: 0 };
     
     if (stats.month !== currentMonth) {
-      allStats[userApiKey] = { month: currentMonth, seconds: 0 };
+      stats.seconds = 0;
+      stats.month = currentMonth;
+      allStats[userApiKey] = stats;
       localStorage.setItem('api_usage_stats', JSON.stringify(allStats));
       setSessionSeconds(0);
     } else {
@@ -426,8 +461,30 @@ export default function App() {
         setSessionSeconds(prev => {
           const newVal = prev + 1;
           const currentMonth = new Date().toISOString().slice(0, 7);
+          const currentMinute = new Date().toISOString().slice(0, 16);
+          const currentDay = new Date().toISOString().slice(0, 10);
           const allStats = JSON.parse(localStorage.getItem('api_usage_stats') || '{}');
-          allStats[userApiKey] = { month: currentMonth, seconds: newVal };
+          const stats = allStats[userApiKey] || { month: currentMonth, seconds: 0, rpm: 0, tpm: 0, rpd: 0, lastMinute: currentMinute, lastDay: currentDay };
+          
+          if (stats.lastMinute !== currentMinute) {
+            stats.rpm = 0;
+            stats.tpm = 0;
+            stats.lastMinute = currentMinute;
+          }
+          if (stats.lastDay !== currentDay) {
+            stats.rpd = 0;
+            stats.lastDay = currentDay;
+          }
+          if (stats.month !== currentMonth) {
+            stats.seconds = 0;
+            stats.month = currentMonth;
+          }
+          
+          stats.seconds = newVal;
+          // Estimate tokens per second: ~32 tokens for 1s audio input + ~10 tokens for output
+          stats.tpm = (stats.tpm || 0) + 42;
+          
+          allStats[userApiKey] = stats;
           localStorage.setItem('api_usage_stats', JSON.stringify(allStats));
           return newVal;
         });
@@ -440,7 +497,7 @@ export default function App() {
       setShowTimePrompt(false);
     }
     return () => clearInterval(interval);
-  }, [isRecording]);
+  }, [isRecording, userApiKey]);
 
   useEffect(() => {
     if (liveSessionDuration === 3600 || liveSessionDuration === 7200) {
@@ -811,11 +868,6 @@ export default function App() {
     localStorage.setItem('audio_output', isAudioOutputEnabled.toString());
     localStorage.setItem('audio_output_mode', audioOutputMode);
   }, [isAudioOutputEnabled, audioOutputMode]);
-
-  useEffect(() => {
-    isTextOutputEnabledRef.current = isTextOutputEnabled;
-    localStorage.setItem('text_output', isTextOutputEnabled.toString());
-  }, [isTextOutputEnabled]);
 
   useEffect(() => {
     localStorage.setItem('voice_type', voiceType);
@@ -1540,6 +1592,8 @@ Rules:
 9. ROBUSTNESS (NOISY ENVIRONMENT): You are operating in a noisy environment. Prioritize the primary speaker's voice. Ignore background chatter, non-speech sounds, and irrelevant noise. If input is fragmented due to noise, reconstruct the meaning based on context.
 10. ACCURACY: If input is ambiguous, prioritize the authorized languages (${localName}, ${clientName}) and ignore dialects or languages not specified.`;
 
+      updateApiUsage('request');
+
       sessionRef.current = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         callbacks: {
@@ -1691,7 +1745,7 @@ Rules:
             if (parts) {
               let textContent = "";
               for (const part of parts) {
-                if (part.text && isTextOutputEnabledRef.current) {
+                if (part.text) {
                   textContent += convertToTwIfNeeded(part.text);
                 }
                 if (part.inlineData?.data && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
@@ -1735,7 +1789,7 @@ Rules:
 
             // 3. 處理模型的語音轉文字 (outputTranscription)
             const outTranscript = message.serverContent?.outputTranscription;
-            if (outTranscript?.text && isTextOutputEnabledRef.current) {
+            if (outTranscript?.text) {
               const processedOutText = convertToTwIfNeeded(outTranscript.text);
               setTranscripts(prev => {
                 const newTranscripts = [...prev];
@@ -1977,7 +2031,7 @@ Rules:
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-2 text-center">Multilingual meeting room</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">
-                建立專屬房間或加入現有房間，與他人即時共享翻譯結果。
+                建立專屬房間，與他人即時共享翻譯結果。
               </p>
 
               <div className="space-y-6">
@@ -2029,33 +2083,6 @@ Rules:
                 >
                   <Users className="w-5 h-5" /> 建立新房間
                 </button>
-
-                <div className="relative flex items-center py-2">
-                  <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
-                  <span className="flex-shrink-0 mx-4 text-slate-400 text-sm">或</span>
-                  <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    加入現有房間
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="輸入房間代碼"
-                      value={joinRoomIdInput}
-                      onChange={(e) => setJoinRoomIdInput(e.target.value)}
-                      className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    />
-                    <button
-                      onClick={handleJoinRoom}
-                      className="px-6 py-3 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white font-bold rounded-xl transition-all active:scale-[0.98] flex items-center gap-2"
-                    >
-                      <LogIn className="w-5 h-5" /> 加入
-                    </button>
-                  </div>
-                </div>
               </div>
               
               <div className="mt-6 text-center text-xs text-slate-500">
@@ -2488,7 +2515,19 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
               </div>
 
               <div className="flex items-center justify-center">
-                <ArrowRightLeft className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                <button
+                  onClick={() => {
+                    if (isRecording) return;
+                    const temp = localLang;
+                    setLocalLang(clientLang);
+                    setClientLang(temp);
+                  }}
+                  disabled={isRecording}
+                  className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="互換語系"
+                >
+                  <ArrowRightLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                </button>
               </div>
 
               <div className="flex-1">
@@ -2571,22 +2610,6 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 {isAudioOutputEnabled ? <Volume2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> : <VolumeX className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />}
               </div>
             </div>
-            <button
-              onClick={() => {
-                if (isTextOutputEnabled && !isAudioOutputEnabled) return; // 防止兩個都關閉
-                setIsTextOutputEnabled(!isTextOutputEnabled);
-              }}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 border",
-                isTextOutputEnabled 
-                  ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30" 
-                  : "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100"
-              )}
-              title={getUiText('textTranscript')}
-            >
-              {isTextOutputEnabled ? <MessageSquare className="w-3.5 h-3.5" /> : <MessageSquareOff className="w-3.5 h-3.5" />}
-              {getUiText('textTranscript')}
-            </button>
           </div>
         </div>
 

@@ -260,6 +260,26 @@ export default function App() {
   const isRecordingRef = useRef(false);
 
   useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (auth.currentUser) {
+        try {
+          await deleteDoc(doc(db, 'connections', auth.currentUser.uid));
+        } catch (e) {
+          console.error("Error deleting connection:", e);
+        }
+      }
+      if (roomId && socketRef.current) {
+        socketRef.current.emit('leave-room', roomId);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [roomId, auth.currentUser]);
+
+  useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
 
@@ -1934,7 +1954,12 @@ Rules:
                   setUserName(tempName);
                   localStorage.setItem('user_name', tempName);
                   setShowNameDialog(false);
-                  setShowRoomDialog(true);
+                  // Directly join the room if a room ID is already in the URL
+                  if (joinRoomIdInput.trim()) {
+                    handleJoinRoom();
+                  } else {
+                    setShowRoomDialog(true);
+                  }
                 }}
                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >

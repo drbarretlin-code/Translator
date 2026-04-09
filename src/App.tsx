@@ -321,6 +321,7 @@ export default function App() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<AudioWorkletNode | null>(null);
   const filterRef = useRef<BiquadFilterNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const nextPlayTimeRef = useRef<number>(0);
   const sessionRef = useRef<any>(null);
   const isLiveRef = useRef<boolean>(false);
@@ -1326,6 +1327,8 @@ export default function App() {
     // 3. 徹底釋放 AudioContext 與處理器
     if (processorRef.current) {
       try {
+        processorRef.current.port.onmessage = null;
+        processorRef.current.port.close();
         processorRef.current.disconnect();
       } catch (e) {
         console.error("Error disconnecting processor:", e);
@@ -1340,6 +1343,15 @@ export default function App() {
         console.error("Error disconnecting filter:", e);
       }
       filterRef.current = null;
+    }
+
+    if (sourceRef.current) {
+      try {
+        sourceRef.current.disconnect();
+      } catch (e) {
+        console.error("Error disconnecting source:", e);
+      }
+      sourceRef.current = null;
     }
 
     if (audioContextRef.current) {
@@ -1396,7 +1408,8 @@ export default function App() {
       let audioCtx = audioContextRef.current;
       
       if (!audioCtx || audioCtx.state === 'closed') {
-        audioCtx = new AudioContextClass({ latencyHint: 'interactive' });
+        // 設定 sampleRate: 16000 讓瀏覽器原生進行高品質重採樣，避免手動線性內插導致音質下降
+        audioCtx = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
         audioContextRef.current = audioCtx;
       }
       
@@ -1469,8 +1482,15 @@ Rules:
               const audioCtx = audioContextRef.current;
               const stream = mediaStreamRef.current;
 
-              await audioCtx.audioWorklet.addModule('/audio-processor.js');
+              try {
+                await audioCtx.audioWorklet.addModule('/audio-processor.js');
+              } catch (e) {
+                // 如果已經 addModule 過，可能會拋出錯誤，這裡忽略它
+                console.log("AudioWorklet module already added or error:", e);
+              }
+              
               const source = audioCtx.createMediaStreamSource(stream);
+              sourceRef.current = source;
               const workletNode = new AudioWorkletNode(audioCtx, 'audio-processor');
               
               workletNode.port.onmessage = (e) => {

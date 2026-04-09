@@ -306,7 +306,7 @@ export default function App() {
   const saveToHistory = async (transcript: any) => {
     if (!auth.currentUser) return;
     try {
-      const historyRef = doc(collection(db, `users/${auth.currentUser.uid}/history`, transcript.id || Date.now().toString()));
+      const historyRef = doc(collection(db, `users/${auth.currentUser.uid}/history`), transcript.id || Date.now().toString());
       await setDoc(historyRef, {
         original: transcript.original,
         translated: transcript.translated,
@@ -2059,12 +2059,22 @@ Rules:
             </button>
             <button 
               onClick={() => {
+                console.log("History button clicked");
                 setShowHistory(true);
                 const fetchHistory = async () => {
-                  if (!auth.currentUser) return;
-                  const q = query(collection(db, `users/${auth.currentUser.uid}/history`), orderBy('timestamp', 'desc'));
-                  const querySnapshot = await getDocs(q);
-                  setHistory(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                  if (!auth.currentUser) {
+                    console.log("No user logged in");
+                    return;
+                  }
+                  console.log("Fetching history for:", auth.currentUser.uid);
+                  try {
+                    const q = query(collection(db, `users/${auth.currentUser.uid}/history`), orderBy('timestamp', 'desc'));
+                    const querySnapshot = await getDocs(q);
+                    console.log("History fetched:", querySnapshot.size);
+                    setHistory(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                  } catch (e) {
+                    console.error("Error fetching history:", e);
+                  }
                 };
                 fetchHistory();
               }}
@@ -2663,10 +2673,14 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
       {/* History Modal */}
       {showHistory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
+          {console.log("Rendering History Modal")}
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto animate-in zoom-in-95">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">翻譯歷史</h2>
-              <button onClick={() => setShowHistory(false)} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+              <button onClick={() => {
+                console.log("Closing history modal");
+                setShowHistory(false);
+              }} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
                 <X className="w-6 h-6" />
               </button>
             </div>

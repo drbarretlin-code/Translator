@@ -249,6 +249,8 @@ export default function App() {
   const [autoGainControl, setAutoGainControl] = useState(true);
   const [gainValue, setGainValue] = useState(1);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [showNameDialog, setShowNameDialog] = useState(!localStorage.getItem('user_name'));
+  const [tempName, setTempName] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyType, setApiKeyType] = useState<'free' | 'paid'>(() => (localStorage.getItem('api_key_type') as 'free' | 'paid') || 'free');
   const [projectName, setProjectName] = useState(() => localStorage.getItem('project_name') || '');
@@ -1910,8 +1912,41 @@ Rules:
         </div>
       )}
 
+      {/* Name Dialog */}
+      {showNameDialog && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 p-6">
+            <h2 className="text-2xl font-bold mb-2 text-center">歡迎使用</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">
+              請輸入您的發言者 ID，這將作為您在文字流中的標籤。
+            </p>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="輸入您的發言者 ID"
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              />
+              <button
+                disabled={!tempName.trim()}
+                onClick={() => {
+                  setUserName(tempName);
+                  localStorage.setItem('user_name', tempName);
+                  setShowNameDialog(false);
+                  setShowRoomDialog(true);
+                }}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                確認並進入
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Room Dialog */}
-      {showRoomDialog && (
+      {!showNameDialog && showRoomDialog && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800">
             <div className="p-6">

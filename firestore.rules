@@ -138,5 +138,12 @@ service cloud.firestore {
       allow update: if isOwner(userId) && isValidConnection(request.resource.data);
       allow delete: if isOwner(userId);
     }
+
+    match /users/{userId}/history/{translationId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidTranscript(request.resource.data);
+      allow update: if isOwner(userId) && isValidTranscript(request.resource.data) && request.resource.data.speakerId == resource.data.speakerId && request.resource.data.timestamp == resource.data.timestamp;
+      allow delete: if isOwner(userId);
+    }
   }
 }

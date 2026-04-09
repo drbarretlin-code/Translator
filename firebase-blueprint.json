@@ -68,6 +68,10 @@
     "/connections/{userId}": {
       "schema": { "$ref": "#/entities/Connection" },
       "description": "Active connections"
+    },
+    "/users/{userId}/history/{translationId}": {
+      "schema": { "$ref": "#/entities/Transcript" },
+      "description": "User's translation history"
     }
   }
 }

@@ -33,6 +33,11 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
         {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
         {t.original}
       </div>
+      {!t.isFinal && t.original && (
+        <div className="text-xs text-slate-400 dark:text-slate-500 italic animate-pulse">
+          即時字幕: {t.original}
+        </div>
+      )}
     </div>
     
     {/* 分隔線 */}
@@ -295,7 +300,36 @@ export default function App() {
   const [showQrCode, setShowQrCode] = useState(false);
   
   const [showAdminSettings, setShowAdminSettings] = useState(false);
-  
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+
+  const saveToHistory = async (transcript: any) => {
+    if (!auth.currentUser) return;
+    try {
+      const historyRef = doc(collection(db, `users/${auth.currentUser.uid}/history`, transcript.id || Date.now().toString()));
+      await setDoc(historyRef, {
+        original: transcript.original,
+        translated: transcript.translated,
+        isFinal: true,
+        sourceLang: transcript.sourceLang || 'Auto',
+        targetLang: transcript.targetLang || 'Auto',
+        timestamp: serverTimestamp(),
+        speakerId: transcript.speakerId || auth.currentUser.uid,
+        speakerName: transcript.speakerName || 'User'
+      });
+    } catch (error) {
+      console.error('Error saving to history:', error);
+    }
+  };
+
+  useEffect(() => {
+    const lastTranscript = transcripts[transcripts.length - 1];
+    if (lastTranscript && lastTranscript.isFinal && !lastTranscript.savedToHistory) {
+      saveToHistory(lastTranscript);
+      setTranscripts(prev => prev.map((t, i) => i === prev.length - 1 ? { ...t, savedToHistory: true } : t));
+    }
+  }, [transcripts]);
+
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'AI Smart Interpreter');
   const [responsiveness, setResponsiveness] = useState(() => localStorage.getItem('responsiveness') || 'normal');
@@ -2023,6 +2057,22 @@ Rules:
             >
               {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-slate-600" />}
             </button>
+            <button 
+              onClick={() => {
+                setShowHistory(true);
+                const fetchHistory = async () => {
+                  if (!auth.currentUser) return;
+                  const q = query(collection(db, `users/${auth.currentUser.uid}/history`), orderBy('timestamp', 'desc'));
+                  const querySnapshot = await getDocs(q);
+                  setHistory(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                };
+                fetchHistory();
+              }}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+              title="翻譯歷史"
+            >
+              <MessageSquare className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+            </button>
             {(!roomId || (user && roomCreatorId && user.uid === roomCreatorId)) && (
               <button 
                 onClick={() => setShowAdminSettings(true)}
@@ -2581,6 +2631,33 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
 
         {/* Responsiveness Info Modal */}
         {/* Removed */}
+
+        {/* History Modal */}
+        {showHistory && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto animate-in zoom-in-95">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">翻譯歷史</h2>
+                <button onClick={() => setShowHistory(false)} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                {history.length === 0 ? (
+                  <p className="text-center text-slate-500 dark:text-slate-400">尚無翻譯歷史</p>
+                ) : (
+                  history.map(t => (
+                    <div key={t.id} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                      <p className="text-sm text-slate-600 dark:text-slate-300">{t.original}</p>
+                      <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mt-1">{t.translated}</p>
+                      <p className="text-[10px] text-slate-400 mt-2">{t.timestamp ? new Date(t.timestamp.toMillis()).toLocaleString() : '剛剛'}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

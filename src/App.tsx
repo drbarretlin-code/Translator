@@ -244,6 +244,11 @@ export default function App() {
   const [showRoomDialog, setShowRoomDialog] = useState(!new URLSearchParams(window.location.search).get('room'));
   const [joinRoomIdInput, setJoinRoomIdInput] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
   const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || '');
+  const [noiseSuppression, setNoiseSuppression] = useState(true);
+  const [echoCancellation, setEchoCancellation] = useState(true);
+  const [autoGainControl, setAutoGainControl] = useState(true);
+  const [gainValue, setGainValue] = useState(1);
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyType, setApiKeyType] = useState<'free' | 'paid'>(() => (localStorage.getItem('api_key_type') as 'free' | 'paid') || 'free');
   const [projectName, setProjectName] = useState(() => localStorage.getItem('project_name') || '');
@@ -361,6 +366,7 @@ export default function App() {
   const processorRef = useRef<AudioWorkletNode | null>(null);
   const filterRef = useRef<BiquadFilterNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const nextPlayTimeRef = useRef<number>(0);
   const sessionRef = useRef<any>(null);
   const isLiveRef = useRef<boolean>(false);
@@ -1465,9 +1471,9 @@ export default function App() {
         // iOS WebKit 要求 getUserMedia 必須在使用者互動後立即執行
         stream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
+            echoCancellation,
+            noiseSuppression,
+            autoGainControl,
             sampleRate: { ideal: 44100 },
             channelCount: 1,
           } 
@@ -2056,6 +2062,13 @@ Rules:
               title={getUiText('darkMode')}
             >
               {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-slate-600" />}
+            </button>
+            <button 
+              onClick={() => setShowAudioSettings(true)}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+              title="音訊設定"
+            >
+              <Settings className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             </button>
             <button 
               onClick={() => {
@@ -2669,6 +2682,37 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
           </div>
         )}
       </main>
+
+      {/* Audio Settings Modal */}
+      {showAudioSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full animate-in zoom-in-95">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">音訊設定</h2>
+              <button onClick={() => setShowAudioSettings(false)} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <label className="flex items-center justify-between">
+                <span className="text-sm text-slate-700 dark:text-slate-300">降噪 (Noise Suppression)</span>
+                <input type="checkbox" checked={noiseSuppression} onChange={(e) => setNoiseSuppression(e.target.checked)} />
+              </label>
+              <label className="flex items-center justify-between">
+                <span className="text-sm text-slate-700 dark:text-slate-300">回音消除 (Echo Cancellation)</span>
+                <input type="checkbox" checked={echoCancellation} onChange={(e) => setEchoCancellation(e.target.checked)} />
+              </label>
+              <label className="flex items-center justify-between">
+                <span className="text-sm text-slate-700 dark:text-slate-300">自動增益 (Auto Gain Control)</span>
+                <input type="checkbox" checked={autoGainControl} onChange={(e) => setAutoGainControl(e.target.checked)} />
+              </label>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-4">
+                註：瀏覽器對音訊處理的控制有限，上述設定為瀏覽器層級的基礎調整。
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* History Modal */}
       {showHistory && (

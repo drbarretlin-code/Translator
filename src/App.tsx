@@ -259,40 +259,6 @@ export default function App() {
   }, [isAuthReady]);
 
       const lastMessageTimeRef = useRef<number>(Date.now());
-      const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-      // 啟動心跳監測
-      const startHeartbeat = () => {
-        heartbeatIntervalRef.current = setInterval(() => {
-          if (!isLiveRef.current) return;
-          
-          const now = Date.now();
-          // 縮短檢查間隔，並將超時門檻設為 10 秒
-          if (now - lastMessageTimeRef.current > 10000) {
-            console.warn("Live Session heartbeat timeout, attempting reconnect...");
-            
-            // 暫停當前狀態
-            const wasLive = isLiveRef.current;
-            stopLiveSession();
-            
-            // 延遲重連，確保資源已釋放
-            if (wasLive) {
-              setTimeout(async () => {
-                isLiveRef.current = true;
-                await startLiveSession();
-              }, 1000);
-            }
-          }
-        }, 2000); // 每 2 秒檢查一次
-      };
-
-      // 停止心跳監測
-      const stopHeartbeat = () => {
-        if (heartbeatIntervalRef.current) {
-          clearInterval(heartbeatIntervalRef.current);
-          heartbeatIntervalRef.current = null;
-        }
-      };
 
   const [isSpeakingEnabled, setIsSpeakingEnabled] = useState(false);
   const [localLang, setLocalLang] = useState(getDefaultLang);
@@ -309,9 +275,20 @@ export default function App() {
 
   const memoizedTranscripts = transcripts;
 
-  // 使用 Virtuoso 的 followOutput 功能來自動捲動
-  // 移除手動 scrollTo 的 useEffect，改由 Virtuoso 屬性處理
-  const [followOutput, setFollowOutput] = useState(true);
+  // 自動捲動到最新一筆資料
+  useEffect(() => {
+    if (virtuosoRef.current && transcripts.length > 0) {
+      // 使用 setTimeout 確保 DOM 已經更新
+      setTimeout(() => {
+        virtuosoRef.current?.scrollToIndex({
+          index: transcripts.length - 1,
+          align: 'end',
+          behavior: 'smooth'
+        });
+      }, 50);
+    }
+  }, [transcripts]);
+
   const [shareSuccess, setShareSuccess] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
   
@@ -1324,7 +1301,6 @@ export default function App() {
   const stopLiveSession = async () => {
     isLiveRef.current = false;
     setIsRecording(false);
-    stopHeartbeat();
 
     if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
       console.log("Room session stopped, but not closing room automatically.");
@@ -1367,13 +1343,13 @@ export default function App() {
 
     if (audioContextRef.current) {
       try {
-        if (audioContextRef.current.state !== 'closed') {
-          await audioContextRef.current.close();
+        if (audioContextRef.current.state === 'running') {
+          await audioContextRef.current.suspend();
         }
       } catch (e) {
-        console.error("Error closing AudioContext:", e);
+        console.error("Error suspending AudioContext:", e);
       }
-      audioContextRef.current = null;
+      // 不設為 null，保留實例以便重連時使用
     }
 
     if (playbackContextRef.current) {
@@ -1408,35 +1384,28 @@ export default function App() {
     isLiveRef.current = true;
     setErrorMsg(null);
     lastMessageTimeRef.current = Date.now();
-    startHeartbeat();
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("您的瀏覽器不支援麥克風，請嘗試使用 Safari 或 Chrome 瀏覽器開啟此網頁。");
       }
 
-      // 確保先清理舊的 AudioContext
-      if (audioContextRef.current) {
-        try {
-          if (audioContextRef.current.state !== 'closed') {
-            await audioContextRef.current.close();
-          }
-        } catch (e) {
-          console.error("Error closing existing AudioContext:", e);
-        }
-        audioContextRef.current = null;
-      }
-
-      // 確保在 iOS 瀏覽器上 AudioContext 狀態為 running
-      // 必須在使用者互動後立即執行
+      // 盡量重複使用 AudioContext，避免在 setTimeout 中重新建立導致 suspended 狀態
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const audioCtx = new AudioContextClass({ latencyHint: 'interactive' });
+      let audioCtx = audioContextRef.current;
+      
+      if (!audioCtx || audioCtx.state === 'closed') {
+        audioCtx = new AudioContextClass({ latencyHint: 'interactive' });
+        audioContextRef.current = audioCtx;
+      }
       
       if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
+        try {
+          await audioCtx.resume();
+        } catch (e) {
+          console.warn("Could not resume AudioContext:", e);
+        }
       }
-      
-      audioContextRef.current = audioCtx;
 
       let stream;
       try {
@@ -1713,9 +1682,9 @@ Rules:
             if (message.serverContent?.interrupted) {
               nextPlayTimeRef.current = 0;
               // 立即停止當前播放的音訊
-              if (audioContextRef.current) {
-                audioContextRef.current.close();
-                audioContextRef.current = null;
+              if (playbackContextRef.current) {
+                playbackContextRef.current.close();
+                playbackContextRef.current = null;
               }
               // 當被中斷時，標記上一條對話為已完成，防止後續內容錯誤追加
               setTranscripts(prev => {
@@ -1730,11 +1699,13 @@ Rules:
           onclose: () => {
             console.log("Live API connection closed, attempting to reconnect...");
             if (isLiveRef.current) {
-              setTimeout(() => {
-                if (isLiveRef.current) {
+              const wasLive = isLiveRef.current;
+              stopLiveSession();
+              if (wasLive) {
+                setTimeout(() => {
                   startLiveSession();
-                }
-              }, 2000);
+                }, 2000);
+              }
             }
           },
           onerror: (err: any) => {
@@ -1751,11 +1722,13 @@ Rules:
             // 嘗試自動重連
             if (isLiveRef.current) {
               console.log("Live API error, attempting to reconnect in 3 seconds...");
-              setTimeout(() => {
-                if (isLiveRef.current) {
+              const wasLive = isLiveRef.current;
+              stopLiveSession();
+              if (wasLive) {
+                setTimeout(() => {
                   startLiveSession();
-                }
-              }, 3000);
+                }, 3000);
+              }
             }
           }
         },

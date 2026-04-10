@@ -74,14 +74,41 @@ const s2tConverter = OpenCC.Converter({ from: 'cn', to: 'tw' });
 // 定義支援的語言與腔調清單
 const LANGUAGES = [
   { id: 'zh-TW', nameKey: 'lang_zh_TW', suffix: '(TW)', name: '繁體中文' },
+  { id: 'zh-CN', nameKey: 'lang_zh_CN', suffix: '(CN)', name: '簡體中文' },
   { id: 'en-US', nameKey: 'lang_en_US', suffix: '(USA)', name: 'English (US)' },
-  { id: 'en-GB', nameKey: 'lang_en_GB', suffix: '(GBR)', name: 'English (GB)' },
-  { id: 'ja-JP', nameKey: 'lang_ja_JP', suffix: '(Japan)', name: '日本語' },
-  { id: 'fr-FR', nameKey: 'lang_fr_FR', suffix: '(Français)', name: 'Français' },
   { id: 'th-TH', nameKey: 'lang_th_TH', suffix: '(ไทย)', name: 'ไทย' },
-  { id: 'vi-VN', nameKey: 'lang_vi_VN', suffix: '(Tiếng Việt)', name: 'Tiếng Việt' },
-  { id: 'id-ID', nameKey: 'lang_id_ID', suffix: '(Bahasa Indonesia)', name: 'Bahasa Indonesia' },
-  { id: 'ms-MY', nameKey: 'lang_ms_MY', suffix: '(Bahasa Melayu)', name: 'Bahasa Melayu' },
+  { id: 'ja-JP', nameKey: 'lang_ja_JP', suffix: '(Japan)', name: '日本語' },
+  { id: 'vi-VN', nameKey: 'lang_vi_VN', suffix: '(Việt Nam)', name: 'Tiếng Việt' },
+  { id: 'fil-PH', nameKey: 'lang_fil_PH', suffix: '(Pilipinas)', name: 'Filipino' },
+  { id: 'id-ID', nameKey: 'lang_id_ID', suffix: '(Indonesia)', name: 'Bahasa Indonesia' },
+  { id: 'ms-MY', nameKey: 'lang_ms_MY', suffix: '(Malaysia)', name: 'Bahasa Melayu' },
+  
+  { id: 'en-GB', nameKey: 'lang_en_GB', suffix: '(GBR)', name: 'English (GB)' },
+  { id: 'ko-KR', nameKey: 'lang_ko_KR', suffix: '(한국)', name: '한국어' },
+  { id: 'fr-FR', nameKey: 'lang_fr_FR', suffix: '(France)', name: 'Français' },
+  { id: 'de-DE', nameKey: 'lang_de_DE', suffix: '(Deutschland)', name: 'Deutsch' },
+  { id: 'es-ES', nameKey: 'lang_es_ES', suffix: '(España)', name: 'Español' },
+  { id: 'it-IT', nameKey: 'lang_it_IT', suffix: '(Italia)', name: 'Italiano' },
+  { id: 'ru-RU', nameKey: 'lang_ru_RU', suffix: '(Россия)', name: 'Русский' },
+  { id: 'pt-BR', nameKey: 'lang_pt_BR', suffix: '(Brasil)', name: 'Português (Brasil)' },
+  { id: 'pt-PT', nameKey: 'lang_pt_PT', suffix: '(Portugal)', name: 'Português (Portugal)' },
+  { id: 'ar-SA', nameKey: 'lang_ar_SA', suffix: '(السعودية)', name: 'العربية' },
+  { id: 'hi-IN', nameKey: 'lang_hi_IN', suffix: '(भारत)', name: 'हिन्दी' },
+  { id: 'bn-BD', nameKey: 'lang_bn_BD', suffix: '(বাংলাদেশ)', name: 'বাংলা' },
+  { id: 'tr-TR', nameKey: 'lang_tr_TR', suffix: '(Türkiye)', name: 'Türkçe' },
+  { id: 'nl-NL', nameKey: 'lang_nl_NL', suffix: '(Nederland)', name: 'Nederlands' },
+  { id: 'pl-PL', nameKey: 'lang_pl_PL', suffix: '(Polska)', name: 'Polski' },
+  { id: 'uk-UA', nameKey: 'lang_uk_UA', suffix: '(Україна)', name: 'Українська' },
+  { id: 'cs-CZ', nameKey: 'lang_cs_CZ', suffix: '(Česko)', name: 'Čeština' },
+  { id: 'el-GR', nameKey: 'lang_el_GR', suffix: '(Ελλάδα)', name: 'Ελληνικά' },
+  { id: 'he-IL', nameKey: 'lang_he_IL', suffix: '(ישראל)', name: 'עברית' },
+  { id: 'sv-SE', nameKey: 'lang_sv_SE', suffix: '(Sverige)', name: 'Svenska' },
+  { id: 'da-DK', nameKey: 'lang_da_DK', suffix: '(Danmark)', name: 'Dansk' },
+  { id: 'fi-FI', nameKey: 'lang_fi_FI', suffix: '(Suomi)', name: 'Suomi' },
+  { id: 'no-NO', nameKey: 'lang_no_NO', suffix: '(Norge)', name: 'Norsk' },
+  { id: 'hu-HU', nameKey: 'lang_hu_HU', suffix: '(Magyarország)', name: 'Magyar' },
+  { id: 'ro-RO', nameKey: 'lang_ro_RO', suffix: '(România)', name: 'Română' },
+  { id: 'sk-SK', nameKey: 'lang_sk_SK', suffix: '(Slovensko)', name: 'Slovenčina' },
 ];
 
 // 定義對話紀錄的資料結構
@@ -2098,9 +2125,9 @@ Rules:
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center min-w-[30px]">
-              <span className="text-red-600 dark:text-red-500 font-bold text-xl tracking-wider">{getUiText('title1')}</span>
+              <span className="text-red-600 dark:text-red-500 font-bold text-xl tracking-wider">{headerTitle1}</span>
             </div>
-            <h1 className="text-base font-semibold tracking-tight">{getUiText('title2')}</h1>
+            <h1 className="text-base font-semibold tracking-tight">{headerTitle2}</h1>
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4 text-sm text-slate-500 dark:text-slate-400 font-medium overflow-x-auto pb-1 sm:pb-0">

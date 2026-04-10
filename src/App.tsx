@@ -129,107 +129,34 @@ interface Transcript {
   isLocal?: boolean;
 }
 
+const getFlagEmoji = (countryCode: string) => {
+  if (!countryCode) return '';
+  const codePoints = countryCode
+    .toUpperCase()
+    .split('')
+    .map(char => 127397 + char.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
+};
+
 const CountryFlag = ({ langId, className }: { langId: string, className?: string }) => {
-  switch (langId) {
-    case 'en-US':
-      return (
-        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="40" fill="#fff"/>
-          <rect width="60" height="3.07" y="0" fill="#B22234"/>
-          <rect width="60" height="3.07" y="6.15" fill="#B22234"/>
-          <rect width="60" height="3.07" y="12.3" fill="#B22234"/>
-          <rect width="60" height="3.07" y="18.46" fill="#B22234"/>
-          <rect width="60" height="3.07" y="24.61" fill="#B22234"/>
-          <rect width="60" height="3.07" y="30.76" fill="#B22234"/>
-          <rect width="60" height="3.07" y="36.92" fill="#B22234"/>
-          <rect width="24" height="21.53" fill="#3C3B6E"/>
-          <circle cx="4" cy="4" r="1" fill="#fff"/><circle cx="12" cy="4" r="1" fill="#fff"/><circle cx="20" cy="4" r="1" fill="#fff"/>
-          <circle cx="8" cy="8" r="1" fill="#fff"/><circle cx="16" cy="8" r="1" fill="#fff"/>
-          <circle cx="4" cy="12" r="1" fill="#fff"/><circle cx="12" cy="12" r="1" fill="#fff"/><circle cx="20" cy="12" r="1" fill="#fff"/>
-          <circle cx="8" cy="16" r="1" fill="#fff"/><circle cx="16" cy="16" r="1" fill="#fff"/>
-        </svg>
-      );
-    case 'en-GB':
-      return (
-        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="40" fill="#012169"/>
-          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" strokeWidth="6"/>
-          <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" strokeWidth="2"/>
-          <path d="M30,0 L30,40 M0,20 L60,20" stroke="#fff" strokeWidth="10"/>
-          <path d="M30,0 L30,40 M0,20 L60,20" stroke="#C8102E" strokeWidth="6"/>
-        </svg>
-      );
-    case 'ja-JP':
-      return (
-        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="40" fill="#fff"/>
-          <circle cx="30" cy="20" r="12" fill="#BC002D"/>
-        </svg>
-      );
-    case 'fr-FR':
-      return (
-        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="20" height="40" fill="#002395"/>
-          <rect x="20" width="20" height="40" fill="#fff"/>
-          <rect x="40" width="20" height="40" fill="#ED2939"/>
-        </svg>
-      );
-    case 'th-TH':
-      return (
-        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="40" fill="#A51931"/>
-          <rect y="6.66" width="60" height="26.66" fill="#F4F5F8"/>
-          <rect y="13.33" width="60" height="13.33" fill="#2D2A4A"/>
-        </svg>
-      );
-    case 'vi-VN':
-      return (
-        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="40" fill="#DA251D"/>
-          <polygon points="30,8 33.5,18.5 44,18.5 35.5,25 38.5,35 30,29 21.5,35 24.5,25 16,18.5 26.5,18.5" fill="#FFFF00"/>
-        </svg>
-      );
-    case 'id-ID':
-      return (
-        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="20" fill="#FF0000"/>
-          <rect y="20" width="60" height="20" fill="#FFFFFF"/>
-        </svg>
-      );
-    case 'ms-MY':
-      return (
-        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="40" fill="#fff"/>
-          <rect y="0" width="60" height="2.85" fill="#CC0000"/>
-          <rect y="5.71" width="60" height="2.85" fill="#CC0000"/>
-          <rect y="11.42" width="60" height="2.85" fill="#CC0000"/>
-          <rect y="17.14" width="60" height="2.85" fill="#CC0000"/>
-          <rect y="22.85" width="60" height="2.85" fill="#CC0000"/>
-          <rect y="28.57" width="60" height="2.85" fill="#CC0000"/>
-          <rect y="34.28" width="60" height="2.85" fill="#CC0000"/>
-          <rect width="30" height="22.85" fill="#000066"/>
-          <circle cx="15" cy="11.42" r="7" fill="#FFCC00"/>
-          <circle cx="17" cy="11.42" r="6" fill="#000066"/>
-          <polygon points="20,11.42 16,13 17,17 14,14 10,15 12,11.42 10,8 14,9 17,6 16,10" fill="#FFCC00"/>
-        </svg>
-      );
-    case 'zh-TW':
-      return (
-        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="40" fill="#FE0000"/>
-          <rect width="30" height="20" fill="#000095"/>
-          <circle cx="15" cy="10" r="5" fill="#fff"/>
-          <path d="M15,2 L16,6 L20,4 L18,8 L22,10 L18,12 L20,16 L16,14 L15,18 L14,14 L10,16 L12,12 L8,10 L12,8 L10,4 L14,6 Z" fill="#fff"/>
-        </svg>
-      );
-    default:
-      return (
-        <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="40" fill="#E2E8F0"/>
-          <circle cx="30" cy="20" r="10" fill="#94A3B8"/>
-        </svg>
-      );
+  const countryCode = langId.split('-')[1]?.toLowerCase();
+  if (!countryCode) {
+    return (
+      <svg viewBox="0 0 60 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="60" height="40" fill="#E2E8F0"/>
+        <circle cx="30" cy="20" r="10" fill="#94A3B8"/>
+      </svg>
+    );
   }
+  return (
+    <img 
+      src={`https://flagcdn.com/w80/${countryCode}.png`} 
+      alt={langId} 
+      className={className} 
+      style={{ objectFit: 'cover' }}
+      referrerPolicy="no-referrer"
+    />
+  );
 };
 
 const getDefaultLang = () => {
@@ -328,7 +255,7 @@ export default function App() {
   const [voiceType, setVoiceType] = useState<'Men' | 'Women'>(() => (localStorage.getItem('voice_type') as 'Men' | 'Women') || 'Men');
   const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
-  const [uiLang, setUiLang] = useState(() => localStorage.getItem('ui_lang') || getDefaultLang());
+  const [uiLang, setUiLang] = useState(() => localStorage.getItem('ui_lang') || 'en-US');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_completed'));
   const virtuosoRef = useRef<any>(null);
@@ -1078,6 +1005,29 @@ export default function App() {
         'clearTitle': '清除對話記錄',
         'clearDesc': '確定要清除所有的對話記錄嗎？此動作無法復原。',
         'cancel': '取消',
+        'uiInterface': 'UI 介面',
+        'adminAdvancedSettings': '管理者進階設定',
+        'headerTitle1Setting': '頂部標題設定 1',
+        'headerTitle2Setting': '頂部標題設定 2',
+        'responsivenessSetting': '響應速度設定',
+        'apiKeySetting': 'API 金鑰設定',
+        'apiTierSetting': 'API 層級設定',
+        'voiceTypeSetting': '語音類型設定',
+        'roomTitle': '多語系會議室',
+        'roomDesc': '建立專屬房間，與他人即時共享翻譯結果。',
+        'displayNameLabel': '您的顯示名稱 (選填)',
+        'projectNameLabel': '專案名稱 (選填)',
+        'apiKeyLabel': 'API 金鑰',
+        'createRoomBtn': '建立新房間',
+        'activeConnections': '目前線上總人數：',
+        'roomLabel': '房間: ',
+        'copyUrl': '複製邀請網址',
+        'showQrCode': '顯示 QR Code',
+        'leaveRoom': '離開房間',
+        'totalConnections': '目前全站連線人數',
+        'welcome': '歡迎使用',
+        'enterSpeakerId': '請輸入您的發言者 ID，這將作為您在文字流中的標籤。',
+        'confirmAndEnter': '確認並進入',
         'lang_zh_TW': '繁體中文',
         'lang_en_US': '美式英語',
         'lang_en_GB': '英式英語',
@@ -1106,6 +1056,29 @@ export default function App() {
         'clearTitle': 'Clear Transcript',
         'clearDesc': 'Are you sure you want to clear all transcripts? This action cannot be undone.',
         'cancel': 'Cancel',
+        'uiInterface': 'UI Interface',
+        'adminAdvancedSettings': 'Admin Advanced Settings',
+        'headerTitle1Setting': 'Header Title 1 Setting',
+        'headerTitle2Setting': 'Header Title 2 Setting',
+        'responsivenessSetting': 'Responsiveness Setting',
+        'apiKeySetting': 'API Key Setting',
+        'apiTierSetting': 'API Tier Setting',
+        'voiceTypeSetting': 'Voice Type Setting',
+        'roomTitle': 'Multilingual meeting room',
+        'roomDesc': 'Create a dedicated room to share translation results in real time.',
+        'displayNameLabel': 'Your Display Name (Optional)',
+        'projectNameLabel': 'Project Name (Optional)',
+        'apiKeyLabel': 'API Key',
+        'createRoomBtn': 'Create New Room',
+        'activeConnections': 'Total Active Connections: ',
+        'roomLabel': 'Room: ',
+        'copyUrl': 'Copy Invite URL',
+        'showQrCode': 'Show QR Code',
+        'leaveRoom': 'Leave Room',
+        'totalConnections': 'Total Site Connections',
+        'welcome': 'Welcome',
+        'enterSpeakerId': 'Please enter your speaker ID, which will be used as your label in the transcript.',
+        'confirmAndEnter': 'Confirm and Enter',
         'lang_zh_TW': 'Traditional Chinese',
         'lang_en_US': 'American English',
         'lang_en_GB': 'British English',
@@ -2001,14 +1974,14 @@ Rules:
       {showNameDialog && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 p-6">
-            <h2 className="text-2xl font-bold mb-2 text-center">歡迎使用</h2>
+            <h2 className="text-2xl font-bold mb-2 text-center">{getUiText('welcome')}</h2>
             <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">
-              請輸入您的發言者 ID，這將作為您在文字流中的標籤。
+              {getUiText('enterSpeakerId')}
             </p>
             <div className="space-y-4">
               <input
                 type="text"
-                placeholder="輸入您的發言者 ID"
+                placeholder={getUiText('enterSpeakerId').split('，')[0]}
                 value={tempName}
                 onChange={(e) => setTempName(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
@@ -2028,7 +2001,7 @@ Rules:
                 }}
                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                確認並進入
+                {getUiText('confirmAndEnter')}
               </button>
             </div>
           </div>
@@ -2041,30 +2014,37 @@ Rules:
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800">
             <div className="p-6">
               <div className="flex justify-end mb-4">
-                <div className="relative inline-block w-32">
-                  <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <select
-                    value={uiLang}
-                    onChange={(e) => setUiLang(e.target.value)}
-                    className="w-full pl-8 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all appearance-none dark:text-slate-200"
-                  >
-                    {LANGUAGES.map(lang => (
-                      <option key={`ui-${lang.id}`} value={lang.id}>
-                        {lang.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{getUiText('uiInterface')}</span>
+                  <div className="relative inline-block w-32">
+                    <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <select
+                      value={uiLang}
+                      onChange={(e) => setUiLang(e.target.value)}
+                      className="w-full pl-8 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all appearance-none dark:text-slate-200"
+                    >
+                      {LANGUAGES.map(lang => {
+                        const countryCode = lang.id.split('-')[1];
+                        const flagEmoji = countryCode ? getFlagEmoji(countryCode) : '';
+                        return (
+                          <option key={`ui-${lang.id}`} value={lang.id}>
+                            {flagEmoji} {lang.name}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
                 </div>
               </div>
-              <h2 className="text-2xl font-bold mb-2 text-center">Multilingual meeting room</h2>
+              <h2 className="text-2xl font-bold mb-2 text-center">{getUiText('roomTitle')}</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">
-                建立專屬房間，與他人即時共享翻譯結果。
+                {getUiText('roomDesc')}
               </p>
 
               <div className="space-y-6">
                 <div className="space-y-3">
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    您的顯示名稱 (選填)
+                    {getUiText('displayNameLabel')}
                   </label>
                   <input
                     type="text"
@@ -2077,12 +2057,12 @@ Rules:
 
                 <div className="space-y-3">
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    API 金鑰
+                    {getUiText('apiKeyLabel')}
                   </label>
                   <div className="relative">
                     <input
                       type={showApiKey ? "text" : "password"}
-                      placeholder="輸入您的 API 金鑰"
+                      placeholder={getUiText('apiKeyLabel')}
                       value={userApiKey}
                       onChange={(e) => setUserApiKey(e.target.value)}
                       className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all pr-24"
@@ -2108,12 +2088,12 @@ Rules:
                   onClick={handleCreateRoom}
                   className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
                 >
-                  <Users className="w-5 h-5" /> 建立新房間
+                  <Users className="w-5 h-5" /> {getUiText('createRoomBtn')}
                 </button>
               </div>
               
               <div className="mt-6 text-center text-xs text-slate-500">
-                目前線上總人數：{activeConnections} / 100
+                {getUiText('activeConnections')}{activeConnections} / 100
               </div>
             </div>
           </div>
@@ -2133,18 +2113,18 @@ Rules:
           <div className="flex items-center gap-2 sm:gap-4 text-sm text-slate-500 dark:text-slate-400 font-medium overflow-x-auto pb-1 sm:pb-0">
             {roomId && (
               <div className="flex items-center gap-2 mr-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg">
-                <span className="text-xs font-medium">房間: {roomId}</span>
+                <span className="text-xs font-medium">{getUiText('roomLabel')}{roomId}</span>
                 <button 
                   onClick={handleShareUrl}
                   className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-blue-600 dark:text-blue-400 ml-2"
-                  title="複製邀請網址"
+                  title={getUiText('copyUrl')}
                 >
                   {shareSuccess ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                 </button>
                 <button 
                   onClick={() => setShowQrCode(true)}
                   className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-blue-600 dark:text-blue-400"
-                  title="顯示 QR Code"
+                  title={getUiText('showQrCode')}
                 >
                   <QrCode className="w-4 h-4" />
                 </button>
@@ -2183,14 +2163,14 @@ Rules:
                     }
                   }}
                   className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-red-600 dark:text-red-400"
-                  title="離開房間"
+                  title={getUiText('leaveRoom')}
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
               </div>
             )}
             
-            <div className="flex items-center gap-1 px-2" title="目前全站連線人數">
+            <div className="flex items-center gap-1 px-2" title={getUiText('totalConnections')}>
               <Users className="w-4 h-4" />
               <span className={cn("text-xs font-mono", activeConnections >= 90 ? "text-red-500" : "")}>
                 {activeConnections}/100
@@ -2231,7 +2211,7 @@ Rules:
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-blue-500" /> 管理者進階設定
+                  <Settings className="w-5 h-5 text-blue-500" /> {getUiText('adminAdvancedSettings')}
                 </h3>
                 <button 
                   onClick={() => setShowAdminSettings(false)}
@@ -2311,7 +2291,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 {/* API 金鑰設定 */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Key className="w-4 h-4 text-blue-500" /> API 金鑰設定
+                    <Key className="w-4 h-4 text-blue-500" /> {getUiText('apiKeySetting')}
                   </h4>
                   
                   {/* API Tier 選擇 */}
@@ -2365,7 +2345,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 {/* 語音人聲設定 */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Mic className="w-4 h-4 text-blue-500" /> 語音人聲設定
+                    <Mic className="w-4 h-4 text-blue-500" /> {getUiText('voiceTypeSetting')}
                   </h4>
                   <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
                     <button
@@ -2388,11 +2368,11 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 {/* 頂部標題設定 */}
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Languages className="w-4 h-4 text-purple-500" /> 頂部標題設定
+                    <Languages className="w-4 h-4 text-purple-500" /> {getUiText('headerTitle1Setting').split(' 1')[0]}
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">標題 1 (預設: TUC)</label>
+                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">{getUiText('headerTitle1Setting')} (預設: TUC)</label>
                       <input
                         type="text"
                         value={headerTitle1}
@@ -2401,7 +2381,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">標題 2 (預設: AI Smart Interpreter)</label>
+                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">{getUiText('headerTitle2Setting')} (預設: AI Smart Interpreter)</label>
                       <input
                         type="text"
                         value={headerTitle2}
@@ -2523,11 +2503,15 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                     disabled={isRecording}
                     className="w-full pl-8 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
                   >
-                    {LANGUAGES.map(lang => (
-                      <option key={`local-${lang.id}`} value={lang.id}>
-                        {lang.name}
-                      </option>
-                    ))}
+                    {LANGUAGES.map(lang => {
+                      const countryCode = lang.id.split('-')[1];
+                      const flagEmoji = countryCode ? getFlagEmoji(countryCode) : '';
+                      return (
+                        <option key={`local-${lang.id}`} value={lang.id}>
+                          {flagEmoji} {lang.name}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -2557,11 +2541,15 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                     disabled={isRecording}
                     className="w-full pl-8 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
                   >
-                    {LANGUAGES.map(lang => (
-                      <option key={`client-${lang.id}`} value={lang.id}>
-                        {lang.name}
-                      </option>
-                    ))}
+                    {LANGUAGES.map(lang => {
+                      const countryCode = lang.id.split('-')[1];
+                      const flagEmoji = countryCode ? getFlagEmoji(countryCode) : '';
+                      return (
+                        <option key={`client-${lang.id}`} value={lang.id}>
+                          {flagEmoji} {lang.name}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>

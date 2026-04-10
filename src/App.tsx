@@ -248,13 +248,12 @@ export default function App() {
   const [echoCancellation, setEchoCancellation] = useState(true);
   const [autoGainControl, setAutoGainControl] = useState(true);
   const [gainValue, setGainValue] = useState(1);
-  const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [showNameDialog, setShowNameDialog] = useState(!localStorage.getItem('user_name'));
   const [tempName, setTempName] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyType, setApiKeyType] = useState<'free' | 'paid'>(() => (localStorage.getItem('api_key_type') as 'free' | 'paid') || 'free');
   const [projectName, setProjectName] = useState(() => localStorage.getItem('project_name') || '');
-  const [customAlert, setCustomAlert] = useState<{message: string, type: 'alert' | 'confirm', onConfirm?: () => void} | null>(null);
+  const [customAlert, setCustomAlert] = useState<{message: string, type: 'alert' | 'confirm' | 'custom', onConfirm?: () => void, buttons?: {label: string, onClick: () => void, variant?: 'primary' | 'secondary' | 'danger'}[]} | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const isRecordingRef = useRef(false);
@@ -302,60 +301,17 @@ export default function App() {
   const [voiceType, setVoiceType] = useState<'Men' | 'Women'>(() => (localStorage.getItem('voice_type') as 'Men' | 'Women') || 'Men');
   const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
-  const uiLang = React.useMemo(() => getDefaultLang(), []);
+  const [uiLang, setUiLang] = useState(() => localStorage.getItem('ui_lang') || getDefaultLang());
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_completed'));
   const virtuosoRef = useRef<any>(null);
 
   const memoizedTranscripts = transcripts;
 
-  // 自動捲動到最新一筆資料
-  useEffect(() => {
-    if (virtuosoRef.current && transcripts.length > 0) {
-      // 使用 setTimeout 確保 DOM 已經更新
-      setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({
-          index: transcripts.length - 1,
-          align: 'end',
-          behavior: 'smooth'
-        });
-      }, 50);
-    }
-  }, [transcripts]);
-
   const [shareSuccess, setShareSuccess] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
   
   const [showAdminSettings, setShowAdminSettings] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<any[]>([]);
-
-  const saveToHistory = async (transcript: any) => {
-    if (!auth.currentUser) return;
-    try {
-      const historyRef = doc(collection(db, `users/${auth.currentUser.uid}/history`), transcript.id || Date.now().toString());
-      await setDoc(historyRef, {
-        original: transcript.original,
-        translated: transcript.translated,
-        isFinal: true,
-        sourceLang: transcript.sourceLang || 'Auto',
-        targetLang: transcript.targetLang || 'Auto',
-        timestamp: serverTimestamp(),
-        speakerId: transcript.speakerId || auth.currentUser.uid,
-        speakerName: transcript.speakerName || 'User'
-      });
-    } catch (error) {
-      console.error('Error saving to history:', error);
-    }
-  };
-
-  useEffect(() => {
-    const lastTranscript = transcripts[transcripts.length - 1];
-    if (lastTranscript && lastTranscript.isFinal && !lastTranscript.savedToHistory) {
-      saveToHistory(lastTranscript);
-      setTranscripts(prev => prev.map((t, i) => i === prev.length - 1 ? { ...t, savedToHistory: true } : t));
-    }
-  }, [transcripts]);
 
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'Equipment Department');
@@ -688,13 +644,15 @@ export default function App() {
             setIsRecording(data.isSpeakingEnabled);
           }
           if (data.isClosed === true) {
-            setCustomAlert({ 
-              message: "房間已由建立者關閉，連線已失效。", 
-              type: 'alert',
-              onConfirm: () => {
-                window.location.href = '/';
-              }
-            });
+            if (user?.uid !== data.creatorId) {
+              setCustomAlert({ 
+                message: "房間已由建立者關閉，連線已失效。", 
+                type: 'alert',
+                onConfirm: () => {
+                  window.location.href = '/';
+                }
+              });
+            }
             stopLiveSession();
           }
         } else {
@@ -1055,6 +1013,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('header_title_2', headerTitle2);
   }, [headerTitle2]);
+
+  useEffect(() => {
+    localStorage.setItem('ui_lang', uiLang);
+  }, [uiLang]);
 
   // 暗色模式切換
   useEffect(() => {
@@ -1963,24 +1925,46 @@ Rules:
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800 p-6 text-center">
             <h3 className="text-lg font-bold mb-4">{customAlert.type === 'confirm' ? '請確認' : '系統提示'}</h3>
             <p className="text-slate-600 dark:text-slate-300 mb-6">{customAlert.message}</p>
-            <div className="flex justify-center gap-3">
-              {customAlert.type === 'confirm' && (
-                <button
-                  onClick={() => setCustomAlert(null)}
-                  className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium rounded-lg transition-colors"
-                >
-                  取消
-                </button>
+            <div className="flex justify-center gap-3 flex-wrap">
+              {customAlert.type === 'custom' && customAlert.buttons ? (
+                customAlert.buttons.map((btn, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      btn.onClick();
+                      setCustomAlert(null);
+                    }}
+                    className={cn(
+                      "px-4 py-2 font-medium rounded-lg transition-colors",
+                      btn.variant === 'danger' ? "bg-red-600 hover:bg-red-700 text-white" :
+                      btn.variant === 'secondary' ? "bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300" :
+                      "bg-blue-600 hover:bg-blue-700 text-white"
+                    )}
+                  >
+                    {btn.label}
+                  </button>
+                ))
+              ) : (
+                <>
+                  {customAlert.type === 'confirm' && (
+                    <button
+                      onClick={() => setCustomAlert(null)}
+                      className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium rounded-lg transition-colors"
+                    >
+                      取消
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (customAlert.onConfirm) customAlert.onConfirm();
+                      setCustomAlert(null);
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                  >
+                    確定
+                  </button>
+                </>
               )}
-              <button
-                onClick={() => {
-                  if (customAlert.onConfirm) customAlert.onConfirm();
-                  setCustomAlert(null);
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-              >
-                確定
-              </button>
             </div>
           </div>
         </div>
@@ -2029,6 +2013,22 @@ Rules:
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800">
             <div className="p-6">
+              <div className="flex justify-end mb-4">
+                <div className="relative inline-block w-32">
+                  <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <select
+                    value={uiLang}
+                    onChange={(e) => setUiLang(e.target.value)}
+                    className="w-full pl-8 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all appearance-none dark:text-slate-200"
+                  >
+                    {LANGUAGES.map(lang => (
+                      <option key={`ui-${lang.id}`} value={lang.id}>
+                        {lang.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               <h2 className="text-2xl font-bold mb-2 text-center">Multilingual meeting room</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">
                 建立專屬房間，與他人即時共享翻譯結果。
@@ -2123,10 +2123,37 @@ Rules:
                 </button>
                 <button
                   onClick={() => {
-                    setRoomId(null);
-                    setTranscripts([]);
-                    setShowRoomDialog(true);
-                    window.history.replaceState({}, '', window.location.pathname);
+                    if (user?.uid === roomCreatorId) {
+                      setCustomAlert({
+                        message: '您要離開房間，還是結束會議室（所有人將被登出）？',
+                        type: 'custom',
+                        buttons: [
+                          { label: '取消', onClick: () => {}, variant: 'secondary' },
+                          { label: '僅離開', onClick: () => {
+                            setRoomId(null);
+                            setTranscripts([]);
+                            setShowRoomDialog(true);
+                            window.history.replaceState({}, '', window.location.pathname);
+                          }, variant: 'primary' },
+                          { label: '結束會議室', onClick: async () => {
+                            try {
+                              await updateDoc(doc(db, 'rooms', roomId), { isClosed: true });
+                            } catch (e) {
+                              console.error(e);
+                            }
+                            setRoomId(null);
+                            setTranscripts([]);
+                            setShowRoomDialog(true);
+                            window.history.replaceState({}, '', window.location.pathname);
+                          }, variant: 'danger' }
+                        ]
+                      });
+                    } else {
+                      setRoomId(null);
+                      setTranscripts([]);
+                      setShowRoomDialog(true);
+                      window.history.replaceState({}, '', window.location.pathname);
+                    }
                   }}
                   className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-red-600 dark:text-red-400"
                   title="離開房間"
@@ -2149,39 +2176,6 @@ Rules:
               title={getUiText('darkMode')}
             >
               {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-slate-600" />}
-            </button>
-            <button 
-              onClick={() => setShowAudioSettings(true)}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-              title="音訊設定"
-            >
-              <Settings className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-            </button>
-            <button 
-              onClick={() => {
-                console.log("History button clicked");
-                setShowHistory(true);
-                const fetchHistory = async () => {
-                  if (!auth.currentUser) {
-                    console.log("No user logged in");
-                    return;
-                  }
-                  console.log("Fetching history for:", auth.currentUser.uid);
-                  try {
-                    const q = query(collection(db, `users/${auth.currentUser.uid}/history`), orderBy('timestamp', 'desc'));
-                    const querySnapshot = await getDocs(q);
-                    console.log("History fetched:", querySnapshot.size);
-                    setHistory(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-                  } catch (e) {
-                    console.error("Error fetching history:", e);
-                  }
-                };
-                fetchHistory();
-              }}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-              title="翻譯歷史"
-            >
-              <MessageSquare className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             </button>
             {(!roomId || (user && roomCreatorId && user.uid === roomCreatorId)) && (
               <button 
@@ -2508,9 +2502,6 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                       </option>
                     ))}
                   </select>
-                  <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <CountryFlag langId={localLang} className="w-4 h-3 rounded-sm shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
-                  </div>
                 </div>
               </div>
 
@@ -2545,9 +2536,6 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                       </option>
                     ))}
                   </select>
-                  <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <CountryFlag langId={clientLang} className="w-4 h-3 rounded-sm shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
-                  </div>
                 </div>
               </div>
               
@@ -2584,30 +2572,44 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
           </div>
 
           {/* 輸出模式控制 */}
-          <div className="flex items-center justify-end gap-2 px-1">
-            <div className="relative">
-              <select
-                value={audioOutputMode}
-                onChange={(e) => {
-                  const mode = e.target.value as 'None' | 'Myself' | 'ALL' | 'Others';
-                  setAudioOutputMode(mode);
-                  setIsAudioOutputEnabled(mode !== 'None');
-                }}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 border appearance-none cursor-pointer",
-                  isAudioOutputEnabled 
-                    ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30" 
-                    : "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100"
-                )}
-                title={getUiText('audioOutput')}
+          <div className="flex items-center justify-end gap-2 px-1 relative group">
+            <div className="flex items-center">
+              <button 
+                className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 z-10"
+                title="語音輸出設定"
               >
-                <option value="None">None</option>
-                <option value="Myself">Myself</option>
-                <option value="ALL">ALL</option>
-                <option value="Others">Others</option>
-              </select>
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                {isAudioOutputEnabled ? <Volume2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> : <VolumeX className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />}
+                {isAudioOutputEnabled ? (
+                  <svg className="w-5 h-5 text-white animate-[pulse_2s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-white/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                    <line x1="23" y1="1" x2="1" y2="23"></line>
+                  </svg>
+                )}
+              </button>
+              
+              <div className="absolute right-5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-300 translate-x-4 group-hover:translate-x-0 flex items-center bg-white dark:bg-slate-800 shadow-xl rounded-full border border-slate-200 dark:border-slate-700 pr-6 pl-2 py-1 gap-1 z-0">
+                {(['None', 'Myself', 'ALL', 'Others'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => {
+                      setAudioOutputMode(mode);
+                      setIsAudioOutputEnabled(mode !== 'None');
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 whitespace-nowrap",
+                      audioOutputMode === mode
+                        ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-sm"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    )}
+                  >
+                    {mode === 'None' ? '靜音' : mode === 'Myself' ? '僅自己' : mode === 'ALL' ? '全部' : '僅他人'}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -2683,6 +2685,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   </div>
                 )}
                 followOutput="smooth"
+                initialTopMostItemIndex={memoizedTranscripts.length - 1}
               />
             )}
           </div>
@@ -2734,99 +2737,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             </div>
           </div>
         )}
-
-        {/* Responsiveness Info Modal */}
-        {/* Removed */}
-
-        {/* History Modal */}
-        {showHistory && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto animate-in zoom-in-95">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">翻譯歷史</h2>
-                <button onClick={() => setShowHistory(false)} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              <div className="space-y-4">
-                {history.length === 0 ? (
-                  <p className="text-center text-slate-500 dark:text-slate-400">尚無翻譯歷史</p>
-                ) : (
-                  history.map(t => (
-                    <div key={t.id} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <p className="text-sm text-slate-600 dark:text-slate-300">{t.original}</p>
-                      <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mt-1">{t.translated}</p>
-                      <p className="text-[10px] text-slate-400 mt-2">{t.timestamp ? new Date(t.timestamp.toMillis()).toLocaleString() : '剛剛'}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </main>
-
-      {/* Audio Settings Modal */}
-      {showAudioSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full animate-in zoom-in-95">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">音訊設定</h2>
-              <button onClick={() => setShowAudioSettings(false)} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <label className="flex items-center justify-between">
-                <span className="text-sm text-slate-700 dark:text-slate-300">降噪 (Noise Suppression)</span>
-                <input type="checkbox" checked={noiseSuppression} onChange={(e) => setNoiseSuppression(e.target.checked)} />
-              </label>
-              <label className="flex items-center justify-between">
-                <span className="text-sm text-slate-700 dark:text-slate-300">回音消除 (Echo Cancellation)</span>
-                <input type="checkbox" checked={echoCancellation} onChange={(e) => setEchoCancellation(e.target.checked)} />
-              </label>
-              <label className="flex items-center justify-between">
-                <span className="text-sm text-slate-700 dark:text-slate-300">自動增益 (Auto Gain Control)</span>
-                <input type="checkbox" checked={autoGainControl} onChange={(e) => setAutoGainControl(e.target.checked)} />
-              </label>
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-4">
-                註：瀏覽器對音訊處理的控制有限，上述設定為瀏覽器層級的基礎調整。
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* History Modal */}
-      {showHistory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
-          {console.log("Rendering History Modal")}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto animate-in zoom-in-95">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">翻譯歷史</h2>
-              <button onClick={() => {
-                console.log("Closing history modal");
-                setShowHistory(false);
-              }} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              {history.length === 0 ? (
-                <p className="text-center text-slate-500 dark:text-slate-400">尚無翻譯歷史</p>
-              ) : (
-                history.map(t => (
-                  <div key={t.id} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
-                    <p className="text-sm text-slate-600 dark:text-slate-300">{t.original}</p>
-                    <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mt-1">{t.translated}</p>
-                    <p className="text-[10px] text-slate-400 mt-2">{t.timestamp ? new Date(t.timestamp.toMillis()).toLocaleString() : '剛剛'}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

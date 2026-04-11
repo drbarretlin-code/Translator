@@ -32,14 +32,14 @@ async function startServer() {
     console.log("User connected:", socket.id);
     
     socket.on("translate", async (data) => {
-      const { text, targetLang, apiKey } = data;
+      const { text, targetLang, apiKey, transcriptId } = data;
       
       const cacheKey = `translation:${targetLang}:${text}`;
       
       if (translationCache.has(cacheKey)) {
         console.log("In-memory cache hit for:", text);
-        socket.emit("translation chunk", { chunk: translationCache.get(cacheKey) });
-        socket.emit("translation end");
+        socket.emit("translation chunk", { chunk: translationCache.get(cacheKey), transcriptId });
+        socket.emit("translation end", { transcriptId });
         return;
       }
 
@@ -47,7 +47,7 @@ async function startServer() {
         const ai = new GoogleGenAI({ apiKey });
         return await ai.models.generateContentStream({
           model: modelName,
-          contents: `Translate the following text to ${targetLang}: ${text}`
+          contents: `Translate the following text to ${targetLang}. Output ONLY the translated text, do not include any explanations, notes, or multiple options: "${text}"`
         });
       };
 
@@ -58,13 +58,13 @@ async function startServer() {
           const textChunk = chunk.text;
           if (textChunk) {
             fullTranslation += textChunk;
-            socket.emit("translation chunk", { chunk: textChunk });
+            socket.emit("translation chunk", { chunk: textChunk, transcriptId });
           }
         }
         
         translationCache.set(cacheKey, fullTranslation);
         
-        socket.emit("translation end");
+        socket.emit("translation end", { transcriptId });
       } catch (error) {
         console.error("Translation error (flash):", error);
         try {

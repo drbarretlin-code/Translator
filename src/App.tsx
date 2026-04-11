@@ -250,6 +250,7 @@ export default function App() {
   const [localLang, setLocalLang] = useState(getDefaultLang);
   const [clientLang, setClientLang] = useState('en-US');
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
+  const [textInput, setTextInput] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [apiTier, setApiTier] = useState<'free' | 'paid'>(() => (localStorage.getItem('gemini_api_tier') as 'free' | 'paid') || 'free');
@@ -260,6 +261,58 @@ export default function App() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_completed'));
   const virtuosoRef = useRef<any>(null);
+  const socketRef = useRef<Socket | null>(null);
+
+  const handleSendMessage = async () => {
+    if (!textInput.trim() || !user || !socketRef.current) return;
+    const text = textInput.trim();
+    setTextInput('');
+
+    const newTranscript: Transcript = {
+      id: Date.now().toString(),
+      original: text,
+      translated: '',
+      isFinal: false,
+      isTranslating: true,
+      sourceLang: localLang,
+      targetLang: clientLang,
+      speakerId: user.uid,
+      speakerName: userName || '匿名',
+      createdAt: Date.now(),
+      isLocal: true
+    };
+    setTranscripts(prev => [...prev, newTranscript]);
+
+    const effectiveApiKey = (user && roomCreatorId && user.uid === roomCreatorId) ? userApiKey : (roomApiKey || userApiKey);
+    
+    socketRef.current.emit('translate', {
+      text,
+      targetLang: clientLang,
+      apiKey: effectiveApiKey,
+      transcriptId: newTranscript.id
+    });
+  };
+
+  // 處理 Socket 翻譯事件
+  useEffect(() => {
+    if (!socketRef.current) return;
+
+    const handleChunk = (data: { chunk: string, transcriptId: string }) => {
+      setTranscripts(prev => prev.map(t => t.id === data.transcriptId ? { ...t, translated: t.translated + data.chunk, isTranslating: true } : t));
+    };
+
+    const handleEnd = (data: { transcriptId: string }) => {
+      setTranscripts(prev => prev.map(t => t.id === data.transcriptId ? { ...t, isFinal: true, isTranslating: false } : t));
+    };
+
+    socketRef.current.on('translation chunk', handleChunk);
+    socketRef.current.on('translation end', handleEnd);
+
+    return () => {
+      socketRef.current?.off('translation chunk', handleChunk);
+      socketRef.current?.off('translation end', handleEnd);
+    };
+  }, [socketRef.current]);
 
   const memoizedTranscripts = transcripts;
 
@@ -455,45 +508,7 @@ export default function App() {
   // 同步 state 到 ref，供事件回呼使用
   useEffect(() => {
     transcriptsRef.current = transcripts;
-
-    // Sync newly finalized transcripts to Firestore
-    if (roomId && user) {
-      const lastTranscript = transcripts[transcripts.length - 1];
-      if (lastTranscript && lastTranscript.isFinal && !lastTranscript.id.startsWith('fs-')) {
-        // Mark as synced to avoid duplicate writes
-        const transcriptToSave = { ...lastTranscript, id: `fs-${lastTranscript.id}` };
-        
-        // We need to update local state to mark it as synced, but doing it here might cause infinite loop.
-        // Instead, we can just write to Firestore. The snapshot listener will pull it back.
-        // To avoid duplicates in UI, our snapshot listener merges based on `isFinal`.
-        // Actually, the snapshot listener replaces the local final transcripts.
-        // So we just write it once.
-        
-        const saveToFirestore = async () => {
-          try {
-            // 更新本地 ID，確保與 Firestore 的同步一致性
-            setTranscripts(prev => prev.map(t => t.id === lastTranscript.id ? transcriptToSave : t));
-            
-            const docRef = doc(db, 'rooms', roomId, 'transcripts', transcriptToSave.id);
-            await setDoc(docRef, {
-              original: transcriptToSave.original,
-              translated: transcriptToSave.translated,
-              isFinal: true,
-              sourceLang: transcriptToSave.sourceLang,
-              targetLang: transcriptToSave.targetLang,
-              timestamp: serverTimestamp(),
-              speakerId: user.uid,
-              ...(userName ? { speakerName: userName } : {})
-            }, { merge: true });
-            console.log('Transcript saved to Firestore successfully');
-          } catch (e) {
-            console.error("Failed to save transcript to Firestore", e);
-          }
-        };
-        saveToFirestore();
-      }
-    }
-  }, [transcripts, roomId, user, userName]);
+  }, [transcripts]);
 
   // Firebase Auth
   useEffect(() => {
@@ -631,7 +646,6 @@ export default function App() {
         console.log("Transcript snapshot received, count:", snapshot.size);
         const firestoreTranscripts: Transcript[] = [];
         snapshot.forEach(doc => {
-          console.log("Transcript doc:", doc.id, doc.data());
           firestoreTranscripts.push({ id: doc.id, ...doc.data() } as Transcript);
         });
         
@@ -644,7 +658,15 @@ export default function App() {
           const localNonFinal = prev.filter(t => !t.isFinal && !firestoreIds.has(t.id));
           
           // 確保排序穩定：Firestore 資料已按 timestamp 排序
-          const merged = [...firestoreTranscripts, ...localNonFinal].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          // 修正：使用 Map 確保 ID 唯一，避免重複
+          const mergedMap = new Map<string, Transcript>();
+          [...firestoreTranscripts, ...localNonFinal].forEach(t => {
+            if (!mergedMap.has(t.id)) {
+              mergedMap.set(t.id, t);
+            }
+          });
+          
+          const merged = Array.from(mergedMap.values()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
           console.log("Merged transcripts:", merged);
           return merged;
         });
@@ -792,7 +814,6 @@ export default function App() {
   }, [localLang]);
 
   const [isSocketConnected, setIsSocketConnected] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
   
   const roomIdRef = useRef(roomId);
   useEffect(() => {
@@ -1432,11 +1453,28 @@ Rules:
                   const newTranscripts = [...prev];
                   const lastIndex = newTranscripts.length - 1;
                   
-                  // 如果最後一筆是使用者輸入且尚未完成，則將 AI 回應附加到該筆的 translated 欄位
                   if (lastIndex >= 0 && !newTranscripts[lastIndex].isFinal) {
+                    const currentTranslated = newTranscripts[lastIndex].translated || "";
+                    
+                    // 如果新的文字內容比目前的長，且包含目前的內容，表示這是更新後的累積文字，直接替換
+                    if (textContent.length > currentTranslated.length && textContent.startsWith(currentTranslated)) {
+                      newTranscripts[lastIndex] = { 
+                        ...newTranscripts[lastIndex], 
+                        translated: textContent,
+                        isTranslating: false 
+                      };
+                      return newTranscripts;
+                    }
+
+                    // 如果已經完全一樣，跳過
+                    if (textContent === currentTranslated) {
+                      return prev;
+                    }
+
+                    // 否則，進行附加 (處理非累積的情況)
                     newTranscripts[lastIndex] = { 
                       ...newTranscripts[lastIndex], 
-                      translated: (newTranscripts[lastIndex].translated || "") + textContent,
+                      translated: currentTranslated + textContent,
                       isTranslating: false 
                     };
                   } else {
@@ -1460,21 +1498,22 @@ Rules:
 
             // 3. 處理模型的語音轉文字 (outputTranscription)
             const outTranscript = message.serverContent?.outputTranscription;
-            if (outTranscript?.text) {
-              const processedOutText = convertToTwIfNeeded(outTranscript.text);
-              setTranscripts(prev => {
-                const newTranscripts = [...prev];
-                const lastIndex = newTranscripts.length - 1;
-                if (lastIndex >= 0) {
-                  newTranscripts[lastIndex] = { 
-                    ...newTranscripts[lastIndex], 
-                    translated: newTranscripts[lastIndex].translated + processedOutText,
-                    isTranslating: false 
-                  };
-                }
-                return newTranscripts;
-              });
-            }
+            // 移除這部分的邏輯，因為 modelTurn 已經處理了文字輸出，避免重複
+            // if (outTranscript?.text) {
+            //   const processedOutText = convertToTwIfNeeded(outTranscript.text);
+            //   setTranscripts(prev => {
+            //     const newTranscripts = [...prev];
+            //     const lastIndex = newTranscripts.length - 1;
+            //     if (lastIndex >= 0) {
+            //       newTranscripts[lastIndex] = { 
+            //         ...newTranscripts[lastIndex], 
+            //         translated: newTranscripts[lastIndex].translated + processedOutText,
+            //         isTranslating: false 
+            //       };
+            //     }
+            //     return newTranscripts;
+            //   });
+            // }
 
             // 4. 處理對話完成訊號
             if (message.serverContent?.turnComplete) {
@@ -2293,6 +2332,25 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             <div className="flex items-center justify-center flex-shrink-0">
               <CountryFlag langId={clientLang} className="w-8 h-5 sm:w-10 sm:h-7 rounded shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
             </div>
+          </div>
+
+          {/* 文字輸入區域 */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder="輸入文字進行翻譯..."
+              className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 outline-none dark:text-slate-200"
+            />
+            <button
+              onClick={handleSendMessage}
+              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              title="發送"
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
           </div>
 
           {/* 輸出模式控制 */}

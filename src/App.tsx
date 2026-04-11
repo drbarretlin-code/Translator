@@ -1042,24 +1042,36 @@ export default function App() {
     }
   };
 
+  const silentTranslate = async (text: string) => {
+    const effectiveApiKey = (user && roomCreatorId && user.uid === roomCreatorId) ? userApiKey : (roomApiKey || userApiKey);
+    if (!effectiveApiKey) {
+      throw new Error('無法取得翻譯服務金鑰');
+    }
+
+    // 使用 Gemini API 進行純文字翻譯
+    const ai = new GoogleGenAI(effectiveApiKey);
+    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    // 獲取語言名稱
+    const sourceLangName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
+    const targetLangName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
+    
+    const prompt = `Translate the following text from ${sourceLangName} to ${targetLangName}. Output ONLY the translated text.
+    Text: ${text}`;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  };
+
   // 發送文字訊息
   const handleSendText = async (text: string) => {
     if (!text.trim()) return;
-    
-    if (!sessionRef.current) {
-      await startLiveSession();
-    }
-    
-    if (!sessionRef.current) {
-      toast.error('無法連線至翻譯服務');
-      return;
-    }
     
     const newTranscript: Transcript = {
       id: Date.now().toString(),
       original: text,
       translated: '',
-      isFinal: false, // 設為 false，等待模型回傳
+      isFinal: false,
       isTranslating: true,
       sourceLang: localLang,
       targetLang: clientLang,
@@ -1070,10 +1082,18 @@ export default function App() {
     };
     setTranscripts(prev => [...prev, newTranscript]);
 
-    // 使用 Gemini Live API 發送文字
-    sessionRef.current.sendRealtimeInput({
-      textInput: text
-    });
+    try {
+      const translatedText = await silentTranslate(text);
+      setTranscripts(prev => prev.map(t => t.id === newTranscript.id ? { 
+        ...t, 
+        translated: translatedText || '翻譯失敗', 
+        isFinal: true, 
+        isTranslating: false 
+      } : t));
+    } catch (error) {
+      console.error('Translation error:', error);
+      setTranscripts(prev => prev.map(t => t.id === newTranscript.id ? { ...t, isTranslating: false, error: '翻譯服務錯誤' } : t));
+    }
   };
 
   // 自動滾動到最新對話
@@ -1279,7 +1299,7 @@ export default function App() {
         };
       });
 
-      const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
+      const ai = new GoogleGenAI(effectiveApiKey);
 
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;

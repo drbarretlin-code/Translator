@@ -31,6 +31,7 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
     {/* 原文 */}
     <div className="flex flex-col gap-1.5 min-h-[1.5rem]">
       <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
+        {t.type === 'text' && <span className="text-xs text-slate-400 mr-1.5 font-mono">⌨️</span>}
         {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
         {t.original}
       </div>
@@ -128,6 +129,7 @@ interface Transcript {
   createdAt: number;
   timestamp?: any;
   isLocal?: boolean;
+  type?: 'voice' | 'text';
 }
 
 const getFlagEmoji = (countryCode: string) => {
@@ -1016,7 +1018,7 @@ export default function App() {
       title: '語音翻譯對話紀錄',
       text: text,
     };
-
+    
     try {
       if (navigator.share) {
         await navigator.share(shareData);
@@ -1037,6 +1039,26 @@ export default function App() {
         }
       }
     }
+  };
+
+  // 發送文字訊息
+  const handleSendText = async (text: string) => {
+    if (!text.trim()) return;
+    const newTranscript: Transcript = {
+      id: Date.now().toString(),
+      original: text,
+      translated: '',
+      isFinal: true,
+      isTranslating: true,
+      sourceLang: clientLang,
+      targetLang: localLang,
+      speakerId: 'user',
+      speakerName: 'You',
+      createdAt: Date.now(),
+      type: 'text'
+    };
+    setTranscripts(prev => [...prev, newTranscript]);
+    // TODO: Call translation logic here
   };
 
   // 自動滾動到最新對話

@@ -267,6 +267,7 @@ export default function App() {
   const [showQrCode, setShowQrCode] = useState(false);
   
   const [showAdminSettings, setShowAdminSettings] = useState(false);
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
 
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'Equipment Department');
@@ -2300,6 +2301,19 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
               <button 
                 className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 z-10"
                 title="語音輸出設定"
+                onClick={() => {
+                  setShowAudioSettings(!showAudioSettings);
+                  const nextEnabled = !isAudioOutputEnabled;
+                  setIsAudioOutputEnabled(nextEnabled);
+                  if (!nextEnabled) {
+                    setAudioOutputMode('None');
+                  } else if (audioOutputMode === 'None') {
+                    setAudioOutputMode('ALL');
+                  }
+                  if (nextEnabled && playbackContextRef.current?.state === 'suspended') {
+                    playbackContextRef.current.resume();
+                  }
+                }}
               >
                 {isAudioOutputEnabled ? (
                   <svg className="w-5 h-5 text-white animate-[pulse_2s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2315,7 +2329,10 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 )}
               </button>
               
-              <div className="absolute right-5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-300 translate-x-4 group-hover:translate-x-0 flex items-center bg-white dark:bg-slate-800 shadow-xl rounded-full border border-slate-200 dark:border-slate-700 pr-6 pl-2 py-1 gap-1 z-0">
+              <div className={cn(
+                "absolute right-5 transition-all duration-300 translate-x-4 flex items-center bg-white dark:bg-slate-800 shadow-xl rounded-full border border-slate-200 dark:border-slate-700 pr-6 pl-2 py-1 gap-1 z-0",
+                showAudioSettings ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+              )}>
                 {(['None', 'Myself', 'ALL', 'Others'] as const).map((mode) => (
                   <button
                     key={mode}

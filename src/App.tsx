@@ -31,7 +31,6 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
     {/* 原文 */}
     <div className="flex flex-col gap-1.5 min-h-[1.5rem]">
       <div className="text-[15px] leading-tight text-slate-700 dark:text-slate-200">
-        {t.type === 'text' && <span className="text-xs text-slate-400 mr-1.5 font-mono">⌨️</span>}
         {t.detectedLang && <span className="text-xs text-slate-400 mr-1.5 font-mono">[{t.detectedLang}]</span>}
         {t.original}
       </div>
@@ -129,7 +128,6 @@ interface Transcript {
   createdAt: number;
   timestamp?: any;
   isLocal?: boolean;
-  type?: 'voice' | 'text';
 }
 
 const getFlagEmoji = (countryCode: string) => {
@@ -198,7 +196,6 @@ export default function App() {
   const [roomCreatorId, setRoomCreatorId] = useState<string | null>(null);
   const [activeConnections, setActiveConnections] = useState<number>(0);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [textInput, setTextInput] = useState('');
   const [showRoomDialog, setShowRoomDialog] = useState(!new URLSearchParams(window.location.search).get('room'));
   const [joinRoomIdInput, setJoinRoomIdInput] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
   const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || '');
@@ -1019,7 +1016,7 @@ export default function App() {
       title: '語音翻譯對話紀錄',
       text: text,
     };
-    
+
     try {
       if (navigator.share) {
         await navigator.share(shareData);
@@ -1042,60 +1039,6 @@ export default function App() {
     }
   };
 
-  const silentTranslate = async (text: string) => {
-    const effectiveApiKey = (user && roomCreatorId && user.uid === roomCreatorId) ? userApiKey : (roomApiKey || userApiKey);
-    if (!effectiveApiKey) {
-      throw new Error('無法取得翻譯服務金鑰');
-    }
-
-    // 使用 Gemini API 進行純文字翻譯
-    const ai = new GoogleGenAI(effectiveApiKey);
-    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-    
-    // 獲取語言名稱
-    const sourceLangName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
-    const targetLangName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
-    
-    const prompt = `Translate the following text from ${sourceLangName} to ${targetLangName}. Output ONLY the translated text.
-    Text: ${text}`;
-
-    const result = await model.generateContent(prompt);
-    return result.response.text();
-  };
-
-  // 發送文字訊息
-  const handleSendText = async (text: string) => {
-    if (!text.trim()) return;
-    
-    const newTranscript: Transcript = {
-      id: Date.now().toString(),
-      original: text,
-      translated: '',
-      isFinal: false,
-      isTranslating: true,
-      sourceLang: localLang,
-      targetLang: clientLang,
-      speakerId: 'user',
-      speakerName: userName || 'You',
-      createdAt: Date.now(),
-      type: 'text'
-    };
-    setTranscripts(prev => [...prev, newTranscript]);
-
-    try {
-      const translatedText = await silentTranslate(text);
-      setTranscripts(prev => prev.map(t => t.id === newTranscript.id ? { 
-        ...t, 
-        translated: translatedText || '翻譯失敗', 
-        isFinal: true, 
-        isTranslating: false 
-      } : t));
-    } catch (error) {
-      console.error('Translation error:', error);
-      setTranscripts(prev => prev.map(t => t.id === newTranscript.id ? { ...t, isTranslating: false, error: '翻譯服務錯誤' } : t));
-    }
-  };
-
   // 自動滾動到最新對話
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -1108,14 +1051,14 @@ export default function App() {
     };
   }, []);
 
-  const playAudioChunk = async (base64Audio: string) => {
+  const playAudioChunk = (base64Audio: string) => {
     if (!playbackContextRef.current) {
       playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
     const audioCtx = playbackContextRef.current;
 
     if (audioCtx.state === 'suspended') {
-      await audioCtx.resume();
+      audioCtx.resume();
     }
 
     const binary = atob(base64Audio);
@@ -1299,7 +1242,7 @@ export default function App() {
         };
       });
 
-      const ai = new GoogleGenAI(effectiveApiKey);
+      const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
 
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
@@ -2351,42 +2294,10 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             </div>
           </div>
 
-          {/* Text Input Row */}
-          <div className="flex items-center gap-2 px-4 pb-4">
-            <input
-              type="text"
-              placeholder="輸入文字..."
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleSendText(textInput);
-                  setTextInput('');
-                }
-              }}
-              className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-            />
-            <button
-              onClick={() => {
-                handleSendText(textInput);
-                setTextInput('');
-              }}
-              className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
-            >
-              <MessageSquare className="w-4 h-4" />
-            </button>
-          </div>
-
           {/* 輸出模式控制 */}
           <div className="flex items-center justify-end gap-2 px-1 relative group">
             <div className="flex items-center">
               <button 
-                onClick={() => {
-                  if (playbackContextRef.current?.state === 'suspended') {
-                    playbackContextRef.current.resume();
-                  }
-                  setIsAudioOutputEnabled(!isAudioOutputEnabled);
-                }}
                 className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 z-10"
                 title="語音輸出設定"
               >

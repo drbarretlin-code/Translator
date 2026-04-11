@@ -32,32 +32,23 @@ async function startServer() {
     console.log("User connected:", socket.id);
     
     socket.on("translate", async (data) => {
-      const { text, targetLang, apiKey, transcriptId } = data;
+      const { text, targetLang, apiKey } = data;
       
       const cacheKey = `translation:${targetLang}:${text}`;
       
       if (translationCache.has(cacheKey)) {
         console.log("In-memory cache hit for:", text);
-        socket.emit("translation chunk", { chunk: translationCache.get(cacheKey), transcriptId });
-        socket.emit("translation end", { transcriptId });
+        socket.emit("translation chunk", { chunk: translationCache.get(cacheKey) });
+        socket.emit("translation end");
         return;
       }
 
-      const translateWithModel = async (modelName: string, retries = 3, delay = 1000): Promise<any> => {
-        try {
-          const ai = new GoogleGenAI({ apiKey });
-          return await ai.models.generateContentStream({
-            model: modelName,
-            contents: `Translate the following text to ${targetLang}. Output ONLY the translated text, do not include any explanations, notes, or multiple options: "${text}"`
-          });
-        } catch (error: any) {
-          if (error.status === 429 && retries > 0) {
-            console.warn(`Rate limit hit, retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return translateWithModel(modelName, retries - 1, delay * 2);
-          }
-          throw error;
-        }
+      const translateWithModel = async (modelName: string) => {
+        const ai = new GoogleGenAI({ apiKey });
+        return await ai.models.generateContentStream({
+          model: modelName,
+          contents: `Translate the following text to ${targetLang}: ${text}`
+        });
       };
 
       try {
@@ -67,13 +58,13 @@ async function startServer() {
           const textChunk = chunk.text;
           if (textChunk) {
             fullTranslation += textChunk;
-            socket.emit("translation chunk", { chunk: textChunk, transcriptId });
+            socket.emit("translation chunk", { chunk: textChunk });
           }
         }
         
         translationCache.set(cacheKey, fullTranslation);
         
-        socket.emit("translation end", { transcriptId });
+        socket.emit("translation end");
       } catch (error) {
         console.error("Translation error (flash):", error);
         try {

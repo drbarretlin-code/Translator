@@ -418,6 +418,7 @@ export default function App() {
       }
     } else if (liveSessionDuration >= 10800) {
       if (user && roomCreatorId && user.uid === roomCreatorId) {
+        setIsRecording(false);
         stopLiveSession();
         setCustomAlert({ message: "連續使用已達三小時，系統強制斷線。", type: 'alert' });
         setLiveSessionDuration(0);
@@ -429,6 +430,7 @@ export default function App() {
     let timeout: NodeJS.Timeout;
     if (showTimePrompt) {
       timeout = setTimeout(() => {
+        setIsRecording(false);
         stopLiveSession();
         setShowTimePrompt(false);
         setCustomAlert({ message: "閒置超過3分鐘，系統已自動斷線。", type: 'alert' });
@@ -609,6 +611,7 @@ export default function App() {
                 }
               });
             }
+            setIsRecording(false);
             stopLiveSession();
           }
         } else {
@@ -620,6 +623,7 @@ export default function App() {
               window.location.href = '/';
             }
           });
+          setIsRecording(false);
           stopLiveSession();
         }
       }, (error) => {
@@ -1092,7 +1096,6 @@ export default function App() {
 
   const stopLiveSession = async () => {
     isLiveRef.current = false;
-    setIsRecording(false);
 
     if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
       console.log("Room session stopped, but not closing room automatically.");
@@ -1183,7 +1186,6 @@ export default function App() {
       return;
     }
 
-    setIsRecording(true);
     isLiveRef.current = true;
     setErrorMsg(null);
     lastMessageTimeRef.current = Date.now();
@@ -1572,9 +1574,20 @@ Rules:
     }
   };
 
-  // 切換錄音狀態 (本地端控制)
+  // 切換錄音狀態 (同步到 Firestore)
   const toggleRecording = async () => {
-    setIsRecording(prev => !prev);
+    const newState = !isRecording;
+    setIsRecording(newState);
+    
+    if (roomId) {
+      try {
+        await updateDoc(doc(db, 'rooms', roomId), {
+          isSpeakingEnabled: newState
+        });
+      } catch (e) {
+        console.error("Failed to sync recording state to Firestore:", e);
+      }
+    }
   };
 
   return (

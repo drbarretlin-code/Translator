@@ -65,8 +65,12 @@ async function startServer() {
         translationCache.set(cacheKey, fullTranslation);
         
         socket.emit("translation end");
-      } catch (error) {
+      } catch (error: any) {
         console.error("Translation error (flash):", error);
+        if (error.status === 429 || (error.message && error.message.includes('429'))) {
+          socket.emit("translation error", { error: "API 額度已達上限 (429)，請稍後再試或檢查您的 API 金鑰。" });
+          return;
+        }
         try {
           let fullTranslation = "";
           const resultStream = await translateWithModel("gemini-2.5-pro");
@@ -81,9 +85,13 @@ async function startServer() {
           translationCache.set(cacheKey, fullTranslation);
           
           socket.emit("translation end");
-        } catch (fallbackError) {
+        } catch (fallbackError: any) {
           console.error("Translation error (pro):", fallbackError);
-          socket.emit("translation error", { error: "Translation failed" });
+          if (fallbackError.status === 429 || (fallbackError.message && fallbackError.message.includes('429'))) {
+            socket.emit("translation error", { error: "API 額度已達上限 (429)，請稍後再試或檢查您的 API 金鑰。" });
+          } else {
+            socket.emit("translation error", { error: "Translation failed" });
+          }
         }
       }
     });

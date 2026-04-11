@@ -1045,21 +1045,32 @@ export default function App() {
   // 發送文字訊息
   const handleSendText = async (text: string) => {
     if (!text.trim()) return;
+    
     const newTranscript: Transcript = {
       id: Date.now().toString(),
       original: text,
       translated: '',
       isFinal: true,
       isTranslating: true,
-      sourceLang: clientLang,
-      targetLang: localLang,
+      sourceLang: localLang,
+      targetLang: clientLang,
       speakerId: 'user',
-      speakerName: 'You',
+      speakerName: userName || 'You',
       createdAt: Date.now(),
       type: 'text'
     };
     setTranscripts(prev => [...prev, newTranscript]);
-    // TODO: Call translation logic here
+
+    if (sessionRef.current) {
+      // 使用 Gemini Live API 發送文字
+      sessionRef.current.sendRealtimeInput({
+        textInput: text
+      });
+    } else {
+      // Fallback: 如果沒有 Live Session，嘗試用其他方式翻譯 (如果有的話)
+      // 這裡暫時先標記為錯誤
+      setTranscripts(prev => prev.map(t => t.id === newTranscript.id ? { ...t, isTranslating: false, error: '無法連線至翻譯服務' } : t));
+    }
   };
 
   // 自動滾動到最新對話

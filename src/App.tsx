@@ -198,6 +198,7 @@ export default function App() {
   const [roomCreatorId, setRoomCreatorId] = useState<string | null>(null);
   const [activeConnections, setActiveConnections] = useState<number>(0);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [textInput, setTextInput] = useState('');
   const [showRoomDialog, setShowRoomDialog] = useState(!new URLSearchParams(window.location.search).get('room'));
   const [joinRoomIdInput, setJoinRoomIdInput] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
   const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || '');
@@ -2314,6 +2315,32 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             <div className="flex items-center justify-center flex-shrink-0">
               <CountryFlag langId={clientLang} className="w-8 h-5 sm:w-10 sm:h-7 rounded shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
             </div>
+          </div>
+
+          {/* Text Input Row */}
+          <div className="flex items-center gap-2 px-4 pb-4">
+            <input
+              type="text"
+              placeholder="輸入文字..."
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSendText(textInput);
+                  setTextInput('');
+                }
+              }}
+              className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+            />
+            <button
+              onClick={() => {
+                handleSendText(textInput);
+                setTextInput('');
+              }}
+              className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
           </div>
 
           {/* 輸出模式控制 */}

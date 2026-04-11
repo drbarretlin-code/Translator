@@ -293,6 +293,32 @@ export default function App() {
     });
   };
 
+  const updateOrAddTranscript = (
+    prev: Transcript[],
+    newTranscript: Partial<Transcript> | ((t: Transcript) => Transcript),
+    matchCondition: (t: Transcript) => boolean
+  ): Transcript[] => {
+    const newTranscripts = [...prev];
+    const index = newTranscripts.findIndex(matchCondition);
+    if (index !== -1) {
+      const update = typeof newTranscript === 'function' ? newTranscript(newTranscripts[index]) : { ...newTranscripts[index], ...newTranscript };
+      newTranscripts[index] = update as Transcript;
+    } else {
+      newTranscripts.push({
+        id: Date.now().toString(),
+        original: "",
+        translated: "",
+        isFinal: false,
+        isTranslating: false,
+        sourceLang: "Auto",
+        targetLang: "Auto",
+        createdAt: Date.now(),
+        ...(typeof newTranscript === 'object' ? newTranscript : {})
+      } as Transcript);
+    }
+    return newTranscripts;
+  };
+
   // 處理 Socket 翻譯事件
   useEffect(() => {
     if (!socketRef.current) return;
@@ -1408,26 +1434,16 @@ Rules:
               
               if (cleanedText) {
                 const processedText = convertToTwIfNeeded(cleanedText);
-                setTranscripts(prev => {
-                  const last = prev[prev.length - 1];
-                  // 修正：確保只更新最後一筆是使用者輸入的紀錄 (isLocal 為 true 或 speakerName 為使用者)
-                  if (last && !last.isFinal && (last.isLocal || last.speakerName === userName)) {
-                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: processedText } : t);
-                  } else {
-                    return [...prev, {
-                      id: Date.now().toString(),
-                      original: processedText,
-                      translated: "",
-                      isFinal: false,
-                      isTranslating: true,
-                      sourceLang: "Auto",
-                      targetLang: "Auto",
-                      createdAt: Date.now(),
-                      isLocal: isRecording,
-                      ...(userName ? { speakerName: userName } : {})
-                    }];
-                  }
-                });
+                setTranscripts(prev => updateOrAddTranscript(
+                  prev,
+                  { 
+                    original: processedText, 
+                    isTranslating: true, 
+                    isLocal: isRecording, 
+                    ...(userName ? { speakerName: userName } : {})
+                  },
+                  (t) => !t.isFinal && (t.isLocal || t.speakerName === userName || !t.speakerName)
+                ));
               }
             }
 
@@ -1448,34 +1464,15 @@ Rules:
               }
 
               if (textContent) {
-                setTranscripts(prev => {
-                  const newTranscripts = [...prev];
-                  const lastIndex = newTranscripts.length - 1;
-                  
-                  // 簡單直接的邏輯：如果最後一筆是 AI 回應且未完成，則附加；否則新增
-                  // 修正：檢查 speakerName 是否為 "AI" 且未完成
-                  if (lastIndex >= 0 && !newTranscripts[lastIndex].isFinal && newTranscripts[lastIndex].speakerName === "AI") {
-                    newTranscripts[lastIndex] = { 
-                      ...newTranscripts[lastIndex], 
-                      translated: (newTranscripts[lastIndex].translated || "") + textContent,
-                      isTranslating: false 
-                    };
-                  } else {
-                    // 否則，建立一筆新的 AI 回應
-                    newTranscripts.push({
-                      id: Date.now().toString(),
-                      original: "",
-                      translated: textContent,
-                      isFinal: false,
-                      isTranslating: false,
-                      sourceLang: "Auto",
-                      targetLang: "Auto",
-                      createdAt: Date.now(),
-                      speakerName: "AI"
-                    });
-                  }
-                  return newTranscripts;
-                });
+                setTranscripts(prev => updateOrAddTranscript(
+                  prev,
+                  (t) => ({
+                    ...t,
+                    translated: (t.translated || "") + textContent,
+                    isTranslating: false
+                  }),
+                  (t) => !t.isFinal && t.speakerName === "AI"
+                ));
               }
             }
 

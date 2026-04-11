@@ -1046,11 +1046,20 @@ export default function App() {
   const handleSendText = async (text: string) => {
     if (!text.trim()) return;
     
+    if (!sessionRef.current) {
+      await startLiveSession();
+    }
+    
+    if (!sessionRef.current) {
+      toast.error('無法連線至翻譯服務');
+      return;
+    }
+    
     const newTranscript: Transcript = {
       id: Date.now().toString(),
       original: text,
       translated: '',
-      isFinal: true,
+      isFinal: false, // 設為 false，等待模型回傳
       isTranslating: true,
       sourceLang: localLang,
       targetLang: clientLang,
@@ -1061,16 +1070,10 @@ export default function App() {
     };
     setTranscripts(prev => [...prev, newTranscript]);
 
-    if (sessionRef.current) {
-      // 使用 Gemini Live API 發送文字
-      sessionRef.current.sendRealtimeInput({
-        textInput: text
-      });
-    } else {
-      // Fallback: 如果沒有 Live Session，嘗試用其他方式翻譯 (如果有的話)
-      // 這裡暫時先標記為錯誤
-      setTranscripts(prev => prev.map(t => t.id === newTranscript.id ? { ...t, isTranslating: false, error: '無法連線至翻譯服務' } : t));
-    }
+    // 使用 Gemini Live API 發送文字
+    sessionRef.current.sendRealtimeInput({
+      textInput: text
+    });
   };
 
   // 自動滾動到最新對話
@@ -1085,14 +1088,14 @@ export default function App() {
     };
   }, []);
 
-  const playAudioChunk = (base64Audio: string) => {
+  const playAudioChunk = async (base64Audio: string) => {
     if (!playbackContextRef.current) {
       playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
     const audioCtx = playbackContextRef.current;
 
     if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
+      await audioCtx.resume();
     }
 
     const binary = atob(base64Audio);
@@ -2358,6 +2361,12 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
           <div className="flex items-center justify-end gap-2 px-1 relative group">
             <div className="flex items-center">
               <button 
+                onClick={() => {
+                  if (playbackContextRef.current?.state === 'suspended') {
+                    playbackContextRef.current.resume();
+                  }
+                  setIsAudioOutputEnabled(!isAudioOutputEnabled);
+                }}
                 className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 z-10"
                 title="語音輸出設定"
               >

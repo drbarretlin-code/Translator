@@ -1410,9 +1410,8 @@ Rules:
                 const processedText = convertToTwIfNeeded(cleanedText);
                 setTranscripts(prev => {
                   const last = prev[prev.length - 1];
-                  // inputTranscription 是累積的，所以直接替換
-                  if (last && !last.isFinal) {
-                    // 如果原本是佔位符，就直接替換掉。如果是累積的，也直接替換，因為 inputTranscription 是累積的
+                  // 修正：確保只更新最後一筆是使用者輸入的紀錄 (isLocal 為 true 或 speakerName 為使用者)
+                  if (last && !last.isFinal && (last.isLocal || last.speakerName === userName)) {
                     return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: processedText } : t);
                   } else {
                     return [...prev, {
@@ -1454,6 +1453,7 @@ Rules:
                   const lastIndex = newTranscripts.length - 1;
                   
                   // 簡單直接的邏輯：如果最後一筆是 AI 回應且未完成，則附加；否則新增
+                  // 修正：檢查 speakerName 是否為 "AI" 且未完成
                   if (lastIndex >= 0 && !newTranscripts[lastIndex].isFinal && newTranscripts[lastIndex].speakerName === "AI") {
                     newTranscripts[lastIndex] = { 
                       ...newTranscripts[lastIndex], 

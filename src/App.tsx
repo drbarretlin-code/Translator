@@ -805,7 +805,7 @@ export default function App() {
 
   useEffect(() => {
     // 初始化 Socket.io 連線
-    socketRef.current = io({
+    socketRef.current = io(window.location.origin, {
       path: "/socket.io",
       reconnection: true,
       reconnectionAttempts: 10,

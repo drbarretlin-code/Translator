@@ -1453,28 +1453,11 @@ Rules:
                   const newTranscripts = [...prev];
                   const lastIndex = newTranscripts.length - 1;
                   
-                  if (lastIndex >= 0 && !newTranscripts[lastIndex].isFinal) {
-                    const currentTranslated = newTranscripts[lastIndex].translated || "";
-                    
-                    // 如果新的文字內容比目前的長，且包含目前的內容，表示這是更新後的累積文字，直接替換
-                    if (textContent.length > currentTranslated.length && textContent.startsWith(currentTranslated)) {
-                      newTranscripts[lastIndex] = { 
-                        ...newTranscripts[lastIndex], 
-                        translated: textContent,
-                        isTranslating: false 
-                      };
-                      return newTranscripts;
-                    }
-
-                    // 如果已經完全一樣，跳過
-                    if (textContent === currentTranslated) {
-                      return prev;
-                    }
-
-                    // 否則，進行附加 (處理非累積的情況)
+                  // 簡單直接的邏輯：如果最後一筆是 AI 回應且未完成，則附加；否則新增
+                  if (lastIndex >= 0 && !newTranscripts[lastIndex].isFinal && newTranscripts[lastIndex].speakerName === "AI") {
                     newTranscripts[lastIndex] = { 
                       ...newTranscripts[lastIndex], 
-                      translated: currentTranslated + textContent,
+                      translated: (newTranscripts[lastIndex].translated || "") + textContent,
                       isTranslating: false 
                     };
                   } else {
